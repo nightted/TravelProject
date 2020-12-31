@@ -1,4 +1,4 @@
-from .async_scraper import async_get_hotel_information_by_date
+from linebot.async_scraper import async_get_hotel_information_by_date
 from time import time
 
 

@@ -8,8 +8,8 @@ from datetime import datetime
 '''
 
 #GLOBAL VARIABLE
-url = "https://www.booking.com/searchresults.zh-tw.html"
-header_url = "https://www.booking.com"
+BASE_BOOKING_URL = "https://www.booking.com/searchresults.zh-tw.html"
+HEADER_URL = "https://www.booking.com"
 
 # send request and return soup result
 def send_request(url, method='GET', data=None, headers=None):
@@ -128,7 +128,7 @@ def get_hotel_information(hotel_name=None,
                           date=None,
                           instant_information=False,
                           destination_admin=None,
-                          url="https://www.booking.com/searchresults.zh-tw.html"):
+                          url=BASE_BOOKING_URL):
     '''
     #function : get hotel information including non-instant or instant data by hotel_name or place id
 
@@ -153,14 +153,12 @@ def get_hotel_information(hotel_name=None,
         raise NameError('Instant information need to assign date!')
 
     if not instant_information:
-
-        y_m_d = get_date_string(7).split('-')
-
-        # 這邊是為了避掉周末會沒房源,可能會造成 gmaps & booking 房源名字比對時的錯誤(如果沒房源會抓不到那間飯店!)
+        # 這邊是為了抓non-instant information
+        # 為了避掉周末會沒房源,可能會造成 gmaps & booking 房源名字比對時的錯誤(如果沒房源會抓不到那間飯店!)
         if datetime.now().isoweekday() in [5, 6, 7]:
-            date = [get_date_string(3), get_date_string(4)]
+            date = [get_date_string(delta_day=17), get_date_string(delta_day=18)]
         else:
-            date = [get_date_string(0), get_date_string(1)]
+            date = [get_date_string(delta_day=0), get_date_string(delta_day=1)]
 
     payload, headers = get_header_payload(scrape_time = date ,
                                           target_hotel=hotel_name ,
@@ -203,28 +201,31 @@ def extract_informations_from_soup( date , soup_content, soup_pic, instant_infor
 
         room_soldout = bool(soup_content.find('p', {'class': "simple_av_calendar_no_av sold_out_msg"}))
         if room_soldout:
-            return {'date' : date[0] ,
+            return {
+                    'queried_date' : date[0] , #get check-in date
                     'room_recommend': '太夯了!!已售完!!',
-                    'room_remainings': '太夯了!!已售完!!',
+                    'room_remainings': 0 ,
                     'hot': '太夯了!!已售完!!',
-                    'price': '太夯了!!已售完!!',
-                    'instant_hrefs': '太夯了!!已售完!!'}
+                    'price': None ,
+                    'instant_hrefs': None
+            }
         # print(soup_content.prettify())
 
-        hotel_room_recommend = soup_content.find('div', {'class': "room_link"}).find(
-            'strong').text  # get the recommend romm type  (instant information)
+        hotel_room_recommend = soup_content.find('div', {'class': "room_link"}).find('strong').text  # get the recommend romm type  (instant information)
         hotel_room_remainings = check_alive_or_not(soup_content.find('span', {'class': "only_x_left sr_rooms_left_wrap "}), msg_if_none='房源還很充足!').rstrip("\n").strip("\n")  # get remaining rooms (instant information)
         hotel_hot = check_alive_or_not(soup_content.find('div', {'class': 'rollover-s1 lastbooking'}),msg_if_none='快上網站訂房!').rstrip("\n").strip("\n")  # get the hot of hotels (instant information) 不是每個hotel都有此block !!!!!
         hotel_price = int(get_digits(str(soup_content.find('div', {'class': "bui-price-display"})).split('TWD')[1])[0])
         hotel_instant_hrefs = soup_content.find('a', {'class': "js-sr-hotel-link hotel_name_link url"})['href'].strip("\n")  # get room_hrefs
 
         # !!BUGS: price 部分有 /xa0124 encode 的問題
-        return {'date' : date[0] ,
+        return {
+                'queried_date' : date[0] ,
                 'room_recommend': hotel_room_recommend,
                 'room_remainings': hotel_room_remainings,
                 'hot': hotel_hot,
                 'price': hotel_price,  # remove /xa0
-                'instant_hrefs': hotel_instant_hrefs}
+                'instant_hrefs': hotel_instant_hrefs
+        }
 
 
     else:
@@ -233,10 +234,12 @@ def extract_informations_from_soup( date , soup_content, soup_pic, instant_infor
             "\n")  # get room_hrefs
         # these items below may not exist
         hotel_rating = check_alive_or_not(soup_content.find("div", {'class': "bui-review-score__badge"}))
-        hotel_comment_num = check_alive_or_not(
-            soup_content.find('div', {"class": "bui-review-score__text"}))  # get # of comments
-        hotel_star = check_alive_or_not(soup_content.find('span', {'class': "bui-rating bui-rating--smaller"}),
-                                        text=False, tag='aria-label')  # get star of hotel
+
+        hotel_comment_num = check_alive_or_not(soup_content.find('div', {"class": "bui-review-score__text"})) # get # of comments
+        hotel_comment_num = get_digits(hotel_comment_num) if hotel_comment_num else None
+
+        hotel_star = check_alive_or_not(soup_content.find('span', {'class': "bui-rating bui-rating--smaller"}),text=False, tag='aria-label')  # get star of hotel
+        hotel_star = get_digits(hotel_star)[0] if hotel_star else None
 
         ### get below <div class="sr_item_photo sr_card_photo_wrapper" id="hotel_5621655">
         hotel_pic_link = soup_pic.find('img', {'class': "hotel_image"})['data-highres']  # get hotel review pic
@@ -269,12 +272,11 @@ def get_detail_hotel_information(hotel_name=None, place_id=None, destination_adm
 
     if inform_dict:
         href = inform_dict['href']
-        new_url = header_url + href
+        new_url = HEADER_URL + href
         soup_sub = send_request(new_url, method="GET")
 
         # soup of commnet part
-        soup_comment = soup_sub.find_all('p', {
-            'class': 'trackit althotelsReview2 fixed_review_height fixed_review_top_align review_content'})
+        soup_comment = soup_sub.find_all('p', {'class': 'trackit althotelsReview2 fixed_review_height fixed_review_top_align review_content'})
         comments = [item.text.rstrip("\n").strip("\n") for item in soup_comment]
 
         # soup of pics part
@@ -288,6 +290,7 @@ def get_detail_hotel_information(hotel_name=None, place_id=None, destination_adm
 
         # soup of booking name part
         name_booking = soup_sub.find('h2', {'id': 'hp_hotel_name'}).text.split('\n')[2]
+        #print(f' in func : {name_booking}')
 
         detail_inform_dict = {
             'comments': comments,

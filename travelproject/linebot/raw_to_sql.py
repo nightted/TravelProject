@@ -22,26 +22,30 @@ def load_pkl(path):
         data = pickle.load(pkl)
     return data
 
-if __name__  == '__main__' :
-
-
-    abs_file_paths = {}
-    Tainan_all_objects = {}
+def set_sql_data(type):
 
     cur_path = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/city data/Tainan/dict data/Tainan_all_objects_dict'
     Tainan_all_objects = load_pkl(cur_path)
-    
-    dicts = Tainan_all_objects['hotel']
+    stores_dict = Tainan_all_objects[type]
 
-    #for dict in dicts:
-    #    print(dict)
-    #    store_obj = Hotel.create_obj_by_dict(**dict)
+    for store_dict in stores_dict:
+        hash_type[type].create_obj_by_dict(**store_dict) # create store objs
 
-    #for obj in Place.objects.all():
-    #    if obj.place_type == 'Hotel':
-    #        obj.delete()
+if __name__  == '__main__' :
 
-    print(len(Hotel.objects.all()))
-    print(len(Comment.objects.all()))
-    print(len(Picture.objects.all()))
+
+    hash_type = {
+        'resturant': Resturant,
+        'train': Station,
+        'hotel': Hotel,
+        'beefsoup': Resturant,
+        'EelNoodles': Resturant,
+        'gruel': Resturant,
+        'nightmarket': Sightseeing,
+        'con': Resturant,
+        'sightseeing': Sightseeing,
+        'porkrice': Resturant
+    }
+
+    set_sql_data('hotel')
 

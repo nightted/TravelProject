@@ -206,6 +206,13 @@ def store_scraper(maps,
       #objects : store or hotel objects found
 
     '''
+    class_hash = {
+        'hotel': Hotel,
+        'resturant': Resturant,
+        'station': Station,
+        'sightseeing': Sightseeing,
+    }
+
     if not place_type:
         raise NameError('No store type assigned!')
 
@@ -263,20 +270,10 @@ def store_scraper(maps,
                            }
 
             # NOTE THAT , the store_obj generate here is NOT save to database yet !
-            if place_type == 'hotel':
-                store_obj = Hotel.create_obj_by_dict(store_dict=information)
-
-            elif place_type == 'resturant':
-                store_obj = Resturant.create_obj_by_dict(store_dict=information)
-
-            elif place_type == 'station':
-                store_obj = Station.create_obj_by_dict(store_dict=information)
-
-            elif place_type == 'sightseeing':
-                store_obj = Sightseeing.create_obj_by_dict(store_dict=information)
-
-            else:
-                print('No such type of place!')
+            try :
+                store_obj = class_hash[place_type].create_obj_by_dict(store_dict=information)
+            except KeyError:
+                raise NameError('Need to specify place CLASS NAME in class_hash table!')
 
             # ignore overlap objects
             if store_obj not in objects:

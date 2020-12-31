@@ -71,14 +71,14 @@ class Sightseeing(Place):
 class Hotel(Place):
 
     # source property
-    room_source = models.CharField(max_length=20, null=True, blank=True)
-    source_name = models.CharField(max_length=100, null=True, blank=True)
+    room_source = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+    source_name = models.CharField(max_length=100, null=True, blank=True ,default=None)
     # detail property
-    detail_href = models.TextField(null=True, blank=True)
-    comment_num = models.IntegerField(default=0, null=True, blank=True)
-    star = models.IntegerField(default=0, null=True, blank=True)
-    source_rating = models.FloatField(default=0, null=True, blank=True)
-    pic_link = models.TextField(null=True, blank=True)
+    detail_href = models.TextField(null=True, blank=True ,default=None)
+    comment_num = models.IntegerField(null=True, blank=True ,default=None)
+    star = models.IntegerField(null=True, blank=True ,default=None)
+    source_rating = models.FloatField(null=True, blank=True ,default=None)
+    pic_link = models.TextField(null=True, blank=True ,default=None)
 
     @classmethod
     def create_obj_by_dict(cls, **store_dict):
@@ -178,10 +178,10 @@ class Hotel(Place):
                     # create foreign key objects for comments and pics
                     pics = store_dict['pics']  # from inner pages , list of pic urls
                     comments = store_dict['comments']  # from inner pages , list of comments
-                    for pic_url  in pics:
-                        self.picture.create(pic_url = pic_url)
-                    for comment_content in comments:
-                        self.comment.create(comment_content=comment_content)
+                    for pic  in pics:
+                        self.picture.create(pics=pic)
+                    for comment in comments:
+                        self.comment.create(comments=comment)
 
                     # To get all foreign objects can use : Class.related_name_of_foreignkey.all()
                     # Webpage : https://carsonwah.github.io/15213187968523.html
@@ -213,18 +213,18 @@ class Hotel(Place):
                 if datetime(date) - datetime.timedelta(days=day_range) < datetime.now():
                     day_range = datetime(date) - datetime.now()
 
-                self.date = date
+
                 # get hotel information async to increase scrape speed , rtype : list of dicts : [{} , {} ... ]
-                instant_inform = async_get_hotel_information_by_date(target_day=self.date,
-                                                                     hotel_name=self.source_name,
-                                                                     destination_admin=self.admin_area,
-                                                                     day_range=day_range,
-                                                                     instant_information=True)
+                instant_inform = async_get_hotel_information_by_date(
+                                                                         hotel_name = self.source_name ,
+                                                                         target_day = date ,
+                                                                         instant_information=True ,
+                                                                         destination_admin = self.admin_area ,
+                                                                         day_range = day_range
+                                                                     )
 
-                self.instant_inform = {instant_dict['date']: instant_dict for instant_dict in
-                                       instant_inform}  # store instant information (+/- 2 days) in dicts
-
-                # 此處用在第一次建立 hotel objects 時所用
+                for instant_dict in instant_inform:
+                    self.instance.create(**instant_dict) # create hotel_instance object
 
             elif self.room_source == 'agoda:':
                 pass
@@ -233,6 +233,24 @@ class Hotel(Place):
 
         else:
             print('[WARNING] Need to get room_source and source_name !')
+
+
+# hotel_instance only for hotel datasheet
+class Hotel_Instance(models.Model):
+
+    # the client information(Auto-update)
+    query_date = models.DateField(auto_now_add=True) # the date the clients makes query action
+
+    # the query information
+    queried_date = models.DateField(auto_now_add=False) # the date of the hotel is queried
+    hot = models.CharField(max_length=100)
+    room_recommend = models.CharField(max_length=100)
+    room_remainings = models.IntegerField()
+    price = models.IntegerField(null=True, blank=True ,default=None)
+    instant_hrefs = models.TextField(null=True, blank=True ,default=None)
+
+    #foreign-key
+    hotel = models.ForeignKey(Hotel , on_delete= models.CASCADE , related_name='instance')
 
 # comment and pics only for hotel datasheet
 class Comment(models.Model):

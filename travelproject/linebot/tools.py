@@ -50,10 +50,14 @@ def get_digits(text):
                 dummy = ''
             else:
                 continue
+    collect = [ int(num_str) for num_str in collect]
+
+    if len(collect) == 1 :
+        return collect[0] # if only one number in , directly return it
 
     return collect
 
-def get_date_string(target_day , delta_day=0):
+def get_date_string(target_day = None , delta_day=0):
     '''
     # function : get +/- delta day of target day
 
@@ -67,6 +71,9 @@ def get_date_string(target_day , delta_day=0):
 
     date: like '2020-12-10'
     '''
+    if not target_day:
+        target_day = datetime.datetime.now().strftime("%Y-%m-%d") # if not assign target day , using today as target day
+
     day = target_day.split('-')
     y , m , d = int(day[0]) , int(day[1]) , int(day[2])
     return (datetime.datetime(y , m , d) + datetime.timedelta(days=delta_day)).strftime("%Y-%m-%d")
