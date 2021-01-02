@@ -1,6 +1,12 @@
 import time as t
-from linebot.models import Hotel , Resturant , Station , Sightseeing
+import os
+import django
 from linebot.tools import find_english_char , get_digits
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "travelproject.settings")
+django.setup()
+from linebot.models import Hotel , Resturant , Station , Sightseeing , Place , Comment , Picture , Hotel_Instance
+
 
 '''
 #  This module search and scrape the stores of specific type , the following is the    
@@ -17,11 +23,6 @@ Admin_area_range_lng = [120.03786531340755 , 122.00991123709818]
 Admin_area_range_lat = [21.871068186336803 , 25.30245194059663]
 
 
-# TODO : read API_KEY (wait modify)
-def read_key(key_path):
-    with open(key_path, 'r') as f:
-        KEY = f.read()
-    return KEY
 
 # Check the place is in target admin_area or not
 def check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
@@ -160,8 +161,7 @@ def geocode_subprocess(maps, store_name):
         return None, None
 
     address = ''.join(address)  # combine address by administrative level
-    address = address + get_digits(geo_res[0]['formatted_address'])[
-        0] + '號' if '號' not in address else address  # if not contain '號' ,get No. in formatted_address
+    address = address + str(get_digits(geo_res[0]['formatted_address'])[0]) + '號' if '號' not in address else address  # if not contain '號' ,get No. in formatted_address
     address = address[3:]  # remove 7XX postal code
 
     lnglat = geo_res[0]['geometry']['location']
@@ -196,7 +196,7 @@ def store_scraper(maps,
 
       #objects : objects already storage (list)
 
-      #place_type : main type of place (Restaurant , Station , Sightseeing , Hotel)
+      #place_type : main type of place (resturant , station , sightseeing , hotel)
 
       #place_sub_type : sub type of place (EEL , porkrice ...)
 
@@ -271,13 +271,12 @@ def store_scraper(maps,
 
             # NOTE THAT , the store_obj generate here is NOT save to database yet !
             try :
-                store_obj = class_hash[place_type].create_obj_by_dict(store_dict=information)
+                store_obj = class_hash[place_type].create_obj_by_dict(**information)
             except KeyError:
                 raise NameError('Need to specify place CLASS NAME in class_hash table!')
 
             # ignore overlap objects
             if store_obj not in objects:
-                store_obj.save() # store to database
                 objects.append(store_obj)
 
         # discard None-rating store and add new items if it's not already exsit
@@ -308,6 +307,8 @@ def moving_store_scraper(maps,
     function : get stores with keyword in range of grid
 
     input:
+      #maps : googlmaps api objects (must need)
+
       #keyword : keyword of store you want to search
 
       #location : search center
@@ -318,7 +319,7 @@ def moving_store_scraper(maps,
 
       #objects : objects already storage (list)
 
-      #place_type : main type of place (Restaurant , Station , Sightseeing , Hotel)
+      #place_type : main type of place (restaurant , station , sightseeing , hotel)
 
       #place_sub_type : sub type of place (EEL , porkrice ...)
     rtype :
@@ -343,8 +344,8 @@ def moving_store_scraper(maps,
             if next_page_token == None:
                 break
             t.sleep(3)  # set time sleep to avoid request too often !
-    return objects
 
+    return objects
 
 def update_new_stores(**kwargs):
     '''

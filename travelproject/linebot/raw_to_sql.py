@@ -13,6 +13,8 @@ django.setup()
 
 from linebot.models import Hotel , Resturant , Station , Sightseeing , Place , Comment , Picture
 
+DICT_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/city data/Tainan/dict data/Tainan_all_objects_dict'
+
 def save_pkl(path, data):
     with open(path, "wb") as pkl:
         pickle.dump(data, pkl)
@@ -24,8 +26,7 @@ def load_pkl(path):
 
 def set_sql_data(type):
 
-    cur_path = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/city data/Tainan/dict data/Tainan_all_objects_dict'
-    Tainan_all_objects = load_pkl(cur_path)
+    Tainan_all_objects = load_pkl(DICT_PATH)
     stores_dict = Tainan_all_objects[type]
 
     for store_dict in stores_dict:

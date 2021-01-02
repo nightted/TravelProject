@@ -2,12 +2,12 @@ from django.db import models
 from django.contrib.postgres.fields import ArrayField
 
 import numpy as np
-from datetime import datetime
+import datetime
 
 from linebot.async_scraper import async_get_hotel_information_by_date
 from linebot.booking_scraper import get_detail_hotel_information
 from linebot.string_comparing import find_common_word_2str
-from linebot.tools import distance
+from linebot.tools import distance , day_to_datetime
 
 
 # from ORM object to hotel object ...
@@ -44,8 +44,8 @@ class Resturant(Place):
     def create_obj_by_dict(cls, **store_dict):
         # basic attribute
         obj = cls(**store_dict)
-        obj.save() # update to database
-
+        if obj not in cls.objects.all():
+            obj.save()  # if not has same data in database , update it .
         return obj
 
 class Station(Place):
@@ -54,8 +54,8 @@ class Station(Place):
     def create_obj_by_dict(cls, **store_dict):
         # basic attribute
         obj = cls(**store_dict)
-        obj.save()  # update to database
-
+        if obj not in cls.objects.all():
+            obj.save()  # if not has same data in database , update it .
         return obj
 
 class Sightseeing(Place):
@@ -64,8 +64,8 @@ class Sightseeing(Place):
     def create_obj_by_dict(cls, **store_dict):
         # basic attribute
         obj = cls(**store_dict)
-        obj.save()  # update to database
-
+        if obj not in cls.objects.all():
+            obj.save()  # if not has same data in database , update it .
         return obj
 
 class Hotel(Place):
@@ -80,11 +80,21 @@ class Hotel(Place):
     source_rating = models.FloatField(null=True, blank=True ,default=None)
     pic_link = models.TextField(null=True, blank=True ,default=None)
 
+    '''
+    #create_obj_by dict function details: 
+    
+    condition 1 : Directly create objs through existing dicts (contain pics and comments attributes) 
+    
+    condition 2 : With google-map scraper function , directly create objects by adding "basic" property, 
+    
+                  other property including source and detail property set as None (NOT contain pics and comments attributes) 
+    
+    '''
+
     @classmethod
     def create_obj_by_dict(cls, **store_dict):
 
-        # init not contain room_source information , need add it .
-
+        # condition 1
         if 'pics' in store_dict and 'comments' in store_dict:
 
             pics = store_dict.pop('pics')
@@ -97,12 +107,13 @@ class Hotel(Place):
             for comment in comments:
                 obj.comment.create(comments = comment)
 
+        # condition 2
         else:
             obj = cls(**store_dict)
-            obj.save()
+            if obj not in cls.objects.all():
+                obj.save() # if this object NOT in database , store it
 
-        # create ORM objects
-        # default no room_source information due to construction step arrangement.
+        # return ORM object
         return obj
 
 
@@ -199,7 +210,12 @@ class Hotel(Place):
             print('[WARNING] Need to get room_source and source_name !')
 
 
-    def construct_instant_attr(self, date=None , day_range=2):
+    def construct_instant_attr(self,
+                               date=None ,
+                               day_range=2 ,
+                               num_people=2 ,
+                               num_rooms=1
+                               ):
 
         if getattr(self, 'room_source', None) and getattr(self, 'source_name', None):
 
@@ -210,21 +226,25 @@ class Hotel(Place):
                     raise NameError('Need to assign date ! ')
 
                 # if the day in range is before today , re-range day_range
-                if datetime(date) - datetime.timedelta(days=day_range) < datetime.now():
-                    day_range = datetime(date) - datetime.now()
+                if day_to_datetime(date , format='datetime') - datetime.timedelta(days=day_range) < datetime.datetime.now():
+                    day_range = (day_to_datetime(date , format='datetime') - datetime.now()).days
 
 
                 # get hotel information async to increase scrape speed , rtype : list of dicts : [{} , {} ... ]
                 instant_inform = async_get_hotel_information_by_date(
-                                                                         hotel_name = self.source_name ,
                                                                          target_day = date ,
+                                                                         day_range=day_range ,
+                                                                         num_people = num_people ,
+                                                                         num_rooms = num_rooms ,
+                                                                         hotel_name = self.source_name ,
                                                                          instant_information=True ,
                                                                          destination_admin = self.admin_area ,
-                                                                         day_range = day_range
                                                                      )
+                #print(instant_inform)
 
                 for instant_dict in instant_inform:
-                    self.instance.create(**instant_dict) # create hotel_instance object
+                    instant_dict.update({'num_rooms' : num_rooms})
+                    Hotel_Instance.create_objects(**instant_dict , hotel = self) # TODO : BUG in Hotel_instance __eq__ function !!!
 
             elif self.room_source == 'agoda:':
                 pass
@@ -239,18 +259,36 @@ class Hotel(Place):
 class Hotel_Instance(models.Model):
 
     # the client information(Auto-update)
-    query_date = models.DateField(auto_now_add=True) # the date the clients makes query action
+    query_date = models.DateField(default=datetime.date.today) # the date the clients makes query action
+    num_rooms = models.IntegerField(default=0)
 
     # the query information
-    queried_date = models.DateField(auto_now_add=False) # the date of the hotel is queried
+    queried_date = models.DateField(default='') # the date of the hotel is queried
+    instant_hrefs = models.TextField(null=True, blank=True, default=None)
+    room_recommend = models.CharField(max_length=20)
+    room_remainings = models.CharField(max_length=20)
     hot = models.CharField(max_length=100)
-    room_recommend = models.CharField(max_length=100)
-    room_remainings = models.IntegerField()
     price = models.IntegerField(null=True, blank=True ,default=None)
-    instant_hrefs = models.TextField(null=True, blank=True ,default=None)
 
     #foreign-key
     hotel = models.ForeignKey(Hotel , on_delete= models.CASCADE , related_name='instance')
+
+    @classmethod
+    def create_objects(cls , **instant_dict):
+
+        obj = cls(**instant_dict)
+
+        if obj not in cls.objects.all():
+            obj.save() # if not has same data in database , update it .
+        return obj
+
+    def __eq__(self , other):
+
+        return self.hotel == other.hotel \
+               and self.query_date == other.query_date \
+               and day_to_datetime(self.queried_date) == other.queried_date \
+               and self.price == other.price \
+               and self.room_recommend == other.room_recommend
 
 # comment and pics only for hotel datasheet
 class Comment(models.Model):

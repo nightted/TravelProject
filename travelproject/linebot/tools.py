@@ -52,16 +52,11 @@ def get_digits(text):
                 continue
     collect = [ int(num_str) for num_str in collect]
 
-    if len(collect) == 1 :
-        return collect[0] # if only one number in , directly return it
-
-    return collect
+    return collect  # a list
 
 def get_date_string(target_day = None , delta_day=0):
     '''
     # function : get +/- delta day of target day
-
-    input :
 
     target_day : the day you want to search , likes '2020-12-10'
 
@@ -74,10 +69,25 @@ def get_date_string(target_day = None , delta_day=0):
     if not target_day:
         target_day = datetime.datetime.now().strftime("%Y-%m-%d") # if not assign target day , using today as target day
 
-    day = target_day.split('-')
-    y , m , d = int(day[0]) , int(day[1]) , int(day[2])
-    return (datetime.datetime(y , m , d) + datetime.timedelta(days=delta_day)).strftime("%Y-%m-%d")
+    return (day_to_datetime(target_day) + datetime.timedelta(days=delta_day)).strftime("%Y-%m-%d")
 
+def day_to_datetime(day , format = 'date'):
+
+    '''
+    # function : to transform str format day to datetime format
+
+    :param day: type of str , ex : '2021-06-06'
+
+    :param format: date or datetime
+
+    :return: type of datetime
+
+    '''
+
+    y , m , d = day.split('-')[0] , day.split('-')[1] , day.split('-')[2]
+    y , m , d = int(y) , int(m) , int(d)
+
+    return datetime.date(y,m,d) if format == 'date' else datetime.datetime( y , m , d )
 
 def distance(a, b):
     '''
@@ -89,3 +99,9 @@ def distance(a, b):
     delta_y_meter = (a_y - b_y) * lat_1
 
     return ((delta_x_meter) ** 2 + (delta_y_meter) ** 2) ** 0.5
+
+# TODO : read API_KEY (wait modify)
+def read_key(key_path):
+    with open(key_path, 'r') as f:
+        KEY = f.read()
+    return KEY
