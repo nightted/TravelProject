@@ -172,16 +172,30 @@ def get_hotel_information(
     #function : main function of scraping from booking.com ,
                 to get hotel information including non-instant or instant data by hotel_name or place id
 
+    date : day to check-in and check-out , ex: ['2020-12-10','2020-12-11']
+
+    num_people : number of people to check in
+
+    num_rooms : number of rooms to book
+
     hotel_name : name of hotel in "booking or agoda" website
+
+    instant_information : if True , get instant information ( price , avaliable number of rooms , room_recommend
+
+    destination_admin : administration of this area (e.g. Tainan , Hsinchu)
 
     place_id : place id of hotel in gmaps (represent accurate position information like address)
 
-    date : day to check-in and check-out , ex: ['2020-12-10','2020-12-11']
-
-    instant_information : if True , get instant information ( price , avaliable number of rooms , room_recommend )
-
 
     '''
+
+    city_en_to_cn = {
+        'Tainan' : '台南' ,
+        'Hsinchu' : '新竹' ,
+        'Yilan' : '宜蘭' ,
+        'Hualian' : '花蓮'
+        # continue to update ....
+    }
 
     if not destination_admin:
         raise NameError('Need to know administrative area !')
@@ -200,7 +214,7 @@ def get_hotel_information(
         else:
             date = [get_date_string(delta_day=0), get_date_string(delta_day=1)]
 
-
+    destination_admin = city_en_to_cn[destination_admin] # header need to pass chinese word as argument
     payload, headers = get_header_payload(
                                               scrape_time = date ,
                                               target_hotel=hotel_name ,
@@ -223,7 +237,7 @@ def get_hotel_information(
 
         except IndexError:
             retry += 1
-            if retry > 1:
+            if retry > 3:
                 return {}  # retry too many time , return empty dicts
 
             print(f'Soup content error , retry {retry} times!')
@@ -287,7 +301,7 @@ def extract_informations_from_soup( date , soup_content, soup_pic, instant_infor
         hotel_rating = check_alive_or_not(soup_content.find("div", {'class': "bui-review-score__badge"}))
 
         hotel_comment_num = check_alive_or_not(soup_content.find('div', {"class": "bui-review-score__text"})) # get # of comments
-        hotel_comment_num = get_digits(hotel_comment_num) if hotel_comment_num else None
+        hotel_comment_num = get_digits(hotel_comment_num)[0] if hotel_comment_num else None
 
         hotel_star = check_alive_or_not(soup_content.find('span', {'class': "bui-rating bui-rating--smaller"}),text=False, tag='aria-label')  # get star of hotel
         hotel_star = get_digits(hotel_star)[0] if hotel_star else None

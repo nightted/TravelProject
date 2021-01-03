@@ -1,9 +1,19 @@
 import datetime
+import django
+import os
 
 # GLOBAL PARAMETER
 lng_1 = 102.516520*1000 # 1 longitude to meters
 lat_1 = 110.740000*1000 # 1 latitude to meters
 
+
+def set_env_attr():
+
+    # [NOTE!] : 這邊解法 from https://blog.csdn.net/kong_and_whit/article/details/104167178?utm_medium=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.not_use_machine_learn_pai&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.not_use_machine_learn_pai
+    #           另外 content root path 要改成 django 的 root (travelproject) , 而不是 Venv 的 root !!!
+
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "travelproject.settings")
+    django.setup()
 
 # find if english word in string
 def find_english_char(string):
@@ -99,6 +109,7 @@ def distance(a, b):
     delta_y_meter = (a_y - b_y) * lat_1
 
     return ((delta_x_meter) ** 2 + (delta_y_meter) ** 2) ** 0.5
+
 
 # TODO : read API_KEY (wait modify)
 def read_key(key_path):

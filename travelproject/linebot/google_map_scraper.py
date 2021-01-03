@@ -1,11 +1,11 @@
 import time as t
-import os
-import django
-from linebot.tools import find_english_char , get_digits
+import googlemaps
+from linebot.tools import find_english_char , get_digits , read_key ,set_env_attr
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "travelproject.settings")
-django.setup()
-from linebot.models import Hotel , Resturant , Station , Sightseeing , Place , Comment , Picture , Hotel_Instance
+set_env_attr()  # set env attrs
+from linebot.google_map_scraper import init_gmaps
+from linebot.models import *
+
 
 
 '''
@@ -17,12 +17,19 @@ from linebot.models import Hotel , Resturant , Station , Sightseeing , Place , C
 # GLOBAL PARAMETER
 lng_1 = 102.516520*1000 # 1 longitude to meters
 lat_1 = 110.740000*1000 # 1 latitude to meters
+KEY_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/docs/API_KEY.txt'
 
 # The range of lat,lng of Taiwan
 Admin_area_range_lng = [120.03786531340755 , 122.00991123709818]
 Admin_area_range_lat = [21.871068186336803 , 25.30245194059663]
 
 
+def init_gmaps():
+
+    GOOGLE_API_KEY = read_key(KEY_PATH)
+    maps = googlemaps.Client(GOOGLE_API_KEY)
+
+    return maps
 
 # Check the place is in target admin_area or not
 def check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
@@ -88,7 +95,7 @@ def grid_generator(location, radius, ranging, mode="max_area"):
     return grid_outer
 
 
-def extract_address_by_geocode(maps, store_name):
+def extract_address_by_geocode(maps, name):
     '''
     function : address extraction
 
@@ -99,10 +106,12 @@ def extract_address_by_geocode(maps, store_name):
     rtype :
       #address : address of store
     '''
+    geocode_result = maps.geocode(name, language='zh-TW')
+    lnglat = geocode_result[0]['geometry']['location']
 
-    address, lnglat = geocode_subprocess(maps, store_name)
-
+    # firstly check place in taiwan or not
     if check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
+        address = geocode_subprocess(maps, geocode_result)
         return address
     else:
         print('[WARNING] This place is not in Taiwan!')
@@ -110,7 +119,7 @@ def extract_address_by_geocode(maps, store_name):
     return None
 
 
-def geocode_subprocess(maps, store_name):
+def geocode_subprocess(maps, geocode_result):
     '''
     function : sub-process of address extraction
 
@@ -141,32 +150,32 @@ def geocode_subprocess(maps, store_name):
         "neighborhood": -1
     }
 
-    # There's 2 condition return empty address and latlng
+    # There's 2 condition return empty address
     # 1. geocoding can't find the store name
     # 2. result of geocoding for administrative level goes wrong
+    # 3.(in outer function) place not in taiwan !
 
-    geo_res = maps.geocode(store_name, language='zh-TW')
-    if not geo_res:
-        print(f'[WARNING] No such hotel found in geocode : {store_name}!')
-        return None, None
+    if not geocode_result:
+        print('[WARNING] No such hotel found in google map !')
+        return None
 
     try:
-        address = [level_ad['long_name'] for level_ad in sorted(geo_res[0]['address_components']
+        address = [level_ad['long_name'] for level_ad in sorted(geocode_result[0]['address_components']
                                                                 , reverse=True
                                                                 , key=lambda x: administrative_level[x['types'][0]])
                    if not find_english_char(level_ad['long_name'])]  # get address by administrative level
     # if the administrative level goes wrong
     except KeyError:
         print('Something wrong with the address!')
-        return None, None
+        return None
 
     address = ''.join(address)  # combine address by administrative level
-    address = address + str(get_digits(geo_res[0]['formatted_address'])[0]) + '號' if '號' not in address else address  # if not contain '號' ,get No. in formatted_address
+    #print("DEBUG:", geocode_result[0]['formatted_address'])
+    address = address + str(get_digits(geocode_result[0]['formatted_address'])[0]) + '號' if '號' not in address else address  # if not contain '號' ,get No. in formatted_address
     address = address[3:]  # remove 7XX postal code
 
-    lnglat = geo_res[0]['geometry']['location']
 
-    return address, lnglat
+    return address
 
 
 # get store information with location , keyword , search radius
@@ -219,9 +228,13 @@ def store_scraper(maps,
     if objects == None:
         objects = []
 
-    res = maps.places_nearby(page_token=next_page_token, keyword=keyword, location=location, radius=radius,
+    result = maps.places_nearby(page_token=next_page_token,
+                             keyword=keyword,
+                             location=location,
+                             radius=radius,
                              language='zh-TW')  # get stores list nearby
-    for store_inform in res['results']:
+
+    for store_inform in result['results']:
 
         lat_lng = store_inform['geometry']['location']
         lat, lng = lat_lng['lat'], lat_lng["lng"]
@@ -284,7 +297,7 @@ def store_scraper(maps,
             print(f"[WARNING] {name} doesn't contains rating !")
             continue
 
-    next_page_token = res.get('next_page_token', None)  # get if token exsit or return None
+    next_page_token = result.get('next_page_token', None)  # get if token exsit or return None
 
     return next_page_token, objects
 
@@ -292,7 +305,7 @@ def store_scraper(maps,
 # get store information with location , keyword , search radius (plus the change pages and move search location)
 # 1 ranging is across 2 * radius in each sides
 # EX : radius = 1000 , ranging = 1 , so the spanning region is 2000 in top,bottom,left,right directions , total scan area = 4000 X 4000 .
-def moving_store_scraper(maps,
+def moving_store_scraper(
                          keyword,
                          search_center,
                          admin_area,
@@ -326,8 +339,9 @@ def moving_store_scraper(maps,
       #objects : store or hotel objects found
 
     '''
-
+    maps = init_gmaps() # initial maps
     search_points = grid_generator(search_center, radius, ranging, mode=mode)
+
     for idx, location in enumerate(search_points):
 
         print(f'finish [{idx + 1}/{len(search_points)}] parts !')
@@ -378,19 +392,6 @@ def rating_modify(rating):
         score = 1.0
 
     return score
-
-
-def distance(a, b):
-    '''
-    get distnace of two point (in unit of meter)
-    '''
-    a_x, a_y = a[0], a[1]
-    b_x, b_y = b[0], b[1]
-    delta_x_meter = (a_x - b_x) * lng_1
-    delta_y_meter = (a_y - b_y) * lat_1
-
-    return ((delta_x_meter) ** 2 + (delta_y_meter) ** 2) ** 0.5
-
 
 # grab the store contain some keyword (ex: 扁食)
 def grab_keyword_store(data, keyword=''):

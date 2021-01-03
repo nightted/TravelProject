@@ -2,28 +2,63 @@ import numpy as np
 import math
 from functools import partial
 
-from .google_map_scraper import rating_modify , grid_generator
-from .save_load import load_pkl
-from .tools import distance
+from linebot.google_map_scraper import rating_modify , grid_generator , init_gmaps
+from linebot.save_load import load_pkl
+from linebot.tools import set_env_attr , distance
+
+set_env_attr()  # set env attrs
+from linebot.models import *
 
 
 # GLOBAL PARAMETER
 grid_to_latlng = load_pkl('grid_to_latlng/grid_to_latlng') # grid row-column idx to lng-lat coordinate
 lng_1 = 102.516520*1000 # 1 longitude to meters
 lat_1 = 110.740000*1000 # 1 latitude to meters
+center_of_city = {
+    "Tainan" : {'lat': 22.9913113, 'lng': 120.198012} ,
+    "Hsinchu" : {'lat': 24.8015877, 'lng': 120.9715883},
+} # search center (lat , lng) of cities
 
+
+# filter method
+def filter_by_criteria(obj, center, criteria, scan_shape='rectan'):
+
+    # Judge if whether it's hotel object,
+    # if so , check room_source exsit or not ; if not , set as True (belong to resturant or con)
+    if hasattr(obj, 'room_source'):
+        selectable = True if getattr(obj, 'room_source') else False  # for handling hotel type store
+    else:
+        selectable = True
+
+    if scan_shape == "circle":
+        return obj if distance([obj.lng, obj.lat], center) < criteria and selectable else None
+    elif scan_shape == 'rectan':
+        return obj if abs(obj.lng - center[0]) * lng_1 < criteria and abs(obj.lat - center[1]) * lat_1 < criteria and selectable else None
+
+
+def filter_store_by_criteria(objs , center, criteria, scan_shape='rectan'):
+
+    judge_func = partial(filter_by_criteria,
+                         center=center,
+                         criteria=criteria,
+                         scan_shape=scan_shape)  # use partial func to pre-init params pos => https://wiki.jikexueyuan.com/project/explore-python/Functional/partial.html
+
+    filtered_stores = list(map(judge_func, objs))  # get # of points inside circle or rectangle
+    filtered_stores = list(filter(None.__ne__, filtered_stores))  # filter None objects
+
+    return filtered_stores
 
 # Calculate local density of stores
 def local_density(
-        data_objects,  # form = [ object1 , object2  , ..... ]
-        rating_depent=False,
-        group_idx=None,  # if it's none setting , start point is defalut as "Tainan Train Station"
-        start_point= {'lat': 22.9913113, 'lng': 120.198012},  # start point of scan (Default : 春川煎餅)
-        jump_distance=100,  # interval of scan spot
-        ranging=20,  # scan range
-        scan_distance=300,  # scan radius of circle or side length of rectangle
-        scan_shape="circle"  # shape of scan area
-):
+                    data_objects,  # form = [ object1 , object2  , ..... ]
+                    rating_dependent = False,  # use modified rating score or not
+                    jump_distance = 100,  # interval of scan spot
+                    ranging = 20,  # scan range
+                    scan_distance = 300,  # scan radius of circle or side length of rectangle
+                    scan_shape = "rectan"  # shape of scan area
+                ):
+
+
     # transform density array to matrix
     def density_matrix_form(density_array):
 
@@ -65,30 +100,37 @@ def local_density(
 
         return np.rot90(d, k=1), np.rot90(p, k=1, axes=(0, 1))  # rotate 90' counterclockwise to fit x-y direction
 
+    if not data_objects:
+        raise NameError('No place objects in list!!')
+
+    # initialize start point
+    admin_area = data_objects[0].admin_area # get admin area from first place obj
+    start_point = center_of_city[admin_area]
+
     # initialize density list ,Rho ,start point
     density = []
     MAX_Rho, MAX_position = 0, None  # max Rho and position
 
     # initialize grids , judge function
     scan_mode = 'full_cover' if ranging > 0 else 'normal'  # if ranging = 0 , single point scan , using normal mode for grid
-    grid_positions = grid_generator(start_point, radius=jump_distance, ranging=ranging,
-                                    mode=scan_mode)  # set search grids initialization
+    grid_positions = grid_generator(start_point,
+                                    radius = jump_distance,
+                                    ranging = ranging,
+                                    mode = scan_mode)  # set search grids initialization
     grid_positions = [[position["lng"], position["lat"]] for position in grid_positions]
-    # x[0] present position , x[1] present rating!
+
 
     for now_position in grid_positions:
-        judge_func = partial(filter_by_criteria,
-                             center=now_position,
-                             criteria=scan_distance,
-                             scan_shape=scan_shape)  # use partial func to pre-init params pos => https://wiki.jikexueyuan.com/project/explore-python/Functional/partial.html
-        filter_objs = list(filter(judge_func, data_objects))  # get # of points inside circle or rectangle
-        # TODO (Done by 11/14): 這地方直接綁 store object 似乎更好? 直接 filter( judge_func , object ) 出來 , output 是符合條件的 objects !!!
+        # (Done by 11/14): 這地方直接綁 store object 似乎更好, 直接 filter( judge_func , object ) 出來 , output 是符合條件的 objects !!!
         # 也不會有 judge function 那邊 x[0] 這種還要給 index 的狀況出現 !! 可改成 lambda x , pos : distance( object.location ,pos) < criteria
         # 這樣 lambda function 就可以獨立出來 ,跟 store_filter_by_radius function 做結合!!!
-        store_counts = [rating_modify(obj.rating) / 512 if rating_depent else 1 for obj in
-                        filter_objs]  # point[1] is the rating score (consider into Rho calculate) ;if not consider rating_depent ,set as 1
-        Rho = sum(store_counts) / (math.pi * (scan_distance / 1000) ** 2) if scan_shape == "circle" else sum(
-            store_counts) / ((2 * scan_distance / 1000) ** 2)  # calculate density
+        filter_objs = filter_store_by_criteria(data_objects,
+                                               center=now_position,
+                                               criteria=scan_distance,
+                                               scan_shape=scan_shape)
+
+        store_counts = [rating_modify(obj.rating) / 512 if rating_dependent else 1  for obj in filter_objs]  #if consider rating_dependent, rating/512 to modify ratings ; if not ,set as 1
+        Rho = sum(store_counts) / (math.pi * (scan_distance / 1000) ** 2) if scan_shape == "circle" else sum(store_counts) / ((2 * scan_distance / 1000) ** 2)  # calculate density
 
         # store data
         density.append([now_position, Rho])
@@ -99,77 +141,122 @@ def local_density(
     return density_matrix_form(density), MAX_Rho, MAX_position
 
 
-def filter_by_criteria(obj, center, criteria, scan_shape='rectan'):
-    # Judge if whether it's hotel object,
-    # if so , check room_source exsit or not ; if not , set as True (belong to resturant or con)
-    if hasattr(obj, 'room_source'):
-        selectable = True if getattr(obj, 'room_source') else False
-    else:
-        selectable = True
-
-    if scan_shape == "circle":
-        return obj if distance([obj.lng, obj.lat], center) < criteria else None
-    elif scan_shape == 'rectan':
-        return obj if abs(obj.lng - center[0]) * lng_1 < criteria and abs(
-            obj.lat - center[1]) * lat_1 < criteria and selectable else None
-
 
 # finding the top10 hightest density position "consider hotels distribution"
-def search_peak(**kwargs):
+def search_peak(admin_area ,
+                silence_demand=False,
+                target_sigtseeings=None ,
+                **kwargs):
     '''
-    function : search peaks from density grid maps
+    #function : search peaks from density grid maps
 
-    **kwargs : the density maps you want to consider , ex : (density_rs = density_rs , density_h = density_h .. )
+    city : city to search (e.g. Tainan , Hsinchu ..)
+
+    silence_demand : if True , choose place 鬧中取靜XD .
+
+    target_sigtseeings : target sightseeing customer want to go , type as : ['sightseeing1','sightseeing2']
+
+    **kwargs : the basic density maps you want to consider , ex : (density_rs = density_rs , density_h = density_h .. )
 
     return : peaks with [ position_x(grid) ,position_y(grid) , density of resturant center , scors of center]
 
     '''
 
-    weights = {
+    if not admin_area:
+        raise NameError('Need to assign admin_area!!')
+
+    # ---------- INITIALIZE ----------
+    # init of grid to lat , lng transform matrix
+    grid_to_latlng = Array_3d.objects.get(name = 'gridtolatlng' , admin_area = admin_area)
+
+    # the minimum score of point to find (it's too far out of city if score less than this value!)
+    demand_threshold = 3
+
+    # the weights of basic density(for local popularity) , including: hotel , resturant , con_store density
+    basic_weights = {
         'rs': 1,
         'cn': 0.5,
         'h': 0.25
     }
 
-    # intial data of train_station
-    station_position = [Tainan_train_station[0].lng, Tainan_train_station[0].lat]  # r square inverse ?
+    # the weights of special food(You want to eat!) density , such : porkrice , eulnooles , beefsoup ..
+    food_weights = 5
+
+    # corrected weight for silence demand (from get min -> max ,so add negative weight -1)
+    corrections = [1] * len(kwargs) if not silence_demand else [-1] * len(basic_weights) + [1] * (len(kwargs) - len(basic_weights))
+
+    # initialize data of train_station and sightseeing (for 1/r wighting use)
+    stations = Station.objects.get(place_sub_type = 'station' , admin_area = admin_area)
+    station_position = [[station.lng, station.lat] for station in stations ]
+    sightseeing_positions = get_latlng_directly(target_sigtseeings , admin_area) if target_sigtseeings else []
+
+    all_positions = station_position + sightseeing_positions # combine
 
     # initialize data of density
     peaks = []
-    density_stack = np.array([density for _, density in kwargs.items()])
-    density_name = [name.split('_')[1] for name in kwargs.keys()]
+    density_stack = np.array([density for _ , density in kwargs.items()])  # stack the all the densitys
+    density_name = [name.split('_')[1] for name in kwargs.keys()]  # all the name of densitys => [rs , cn , h , bs , pr ..]
     shape_W_L = density_stack.shape[1]
 
+    # main loop for finding peaks
     for i in range(shape_W_L):
         for j in range(shape_W_L):
 
             surrounding = [[k, l] for k in range(i - 1, i + 2) for l in range(j - 1, j + 2) if (k != i or l != j) and (
-                        shape_W_L > k > 0 and shape_W_L > l > 0)]  # find surranding 8 positions
-            density_surrounding = [density_stack[:, pos_x, pos_y] for pos_x, pos_y in surrounding]
+                                                                                    shape_W_L > k > 0  and shape_W_L > l > 0)]  # find surranding 8 positions
 
-            score_surroundig = []
-            for densitys in density_surrounding:
+            # score of surroundings
+            density_surroundings = [density_stack[:, pos_x, pos_y] for pos_x, pos_y in surrounding]
+            score_surrounding = []
+            for density_surrounding in density_surroundings:
                 score = 0
-                for name, density in zip(density_name, densitys):
-                    score += weights[name] * density
-                score_surroundig.append(score)
+                for correction, name, density in zip(corrections, density_name, density_surrounding):
+                    score += correction * basic_weights.get(name, food_weights) * density
+                score_surrounding.append(score)
 
+            # score of center
             density_center = density_stack[:, i, j]
             score = 0
-            for name, density in zip(density_name, density_center):
-                score += weights[name] * density
+            for correction, name, density in zip(corrections, density_name, density_center):
+                score += correction * basic_weights.get(name, food_weights) * density
             score_center = score
 
-            if len(list(filter(lambda x: x < score_center, score_surroundig))) == 8:
-                peaks.append([i,
-                              j,
-                              density_center[0],  # resturant
-                              density_center[1],  # con
-                              density_center[2],  # hotel
-                              distance(grid_to_latlng[i][j], station_position) / 1000,
-                              score_center / (distance(grid_to_latlng[i][j], station_position) / 1000)])
-            else:
+            # if center larger than all surroundings and larger than minimum threshold , keep the point
+            if len(list(filter(lambda x: x < score_center, score_surrounding))) == 8 and abs(score_center) > demand_threshold:
 
+
+                current_position = grid_to_latlng[i][j]
+                positions_distance = list(map(lambda x : distance(current_position , x), all_positions))  # distance from current position to all_positions
+                positions_distance_weighting = sum([1000.0 / distance for distance in positions_distance])  # calculate 1/r weights for all_positions
+
+                peaks.append([list(grid_to_latlng[i][j]), score_center * positions_distance_weighting])
+                # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
+
+            else:
                 continue
 
+    # sort peaks by scores
+    peaks = sorted(peaks, reverse=True, key=lambda x: x[1])
+    peaks = [peak_inform[0] for peak_inform in peaks]  # extract positions only
+
     return peaks
+
+
+def get_latlng_directly( positions , admin_area ):
+    # In Django ORM , adjust to find in Class.object.all()
+
+    position_latlng = []
+    for position_name in positions:
+
+        place = Place.objects.filter(name = position_name , admin_area = admin_area) #search from place
+        if not place:
+            maps = init_gmaps()
+            res = maps.geocode(position_name)
+            location = res[0]['geometry']['location']
+            position_latlng.append([location['lng'], location['lat']])
+
+        else:
+            position_latlng = position_latlng + [ [p.lng , p.lat] for p in place ]
+
+    return position_latlng
+

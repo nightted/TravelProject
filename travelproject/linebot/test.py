@@ -1,20 +1,13 @@
 from linebot.async_scraper import async_get_hotel_information_by_date
-from linebot.google_map_scraper import moving_store_scraper
-from linebot.tools import read_key
+from linebot.google_map_scraper import moving_store_scraper , init_gmaps
 
-import googlemaps
+
 import time
-import os
-import django
 import matplotlib.pyplot as plt
+from linebot.tools import set_env_attr
 
-# [NOTE!] : 這邊解法 from https://blog.csdn.net/kong_and_whit/article/details/104167178?utm_medium=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.not_use_machine_learn_pai&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.not_use_machine_learn_pai
-#           另外 content root path 要改成 django 的 root (travelproject) , 而不是 Venv 的 root !!!
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "travelproject.settings")
-django.setup()
-from linebot.models import Hotel , Resturant , Station , Sightseeing , Place , Comment , Picture , Hotel_Instance
-
-
+set_env_attr()
+from linebot.models import *
 
 def test_hotel_available(day_range , hotel , num_people , num_rooms):
 
@@ -65,26 +58,31 @@ def test_hotel_instant( test_len ):
 
 if __name__ == '__main__':
 
-    KEY_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/docs/API_KEY.txt'
-    GOOGLE_API_KEY = read_key(KEY_PATH)
-    maps = googlemaps.Client(GOOGLE_API_KEY)
-    location = maps.geocode('春川煎餅')[0]['geometry']['location']
+    '''loc_center = '新竹火車站'
+    maps = init_gmaps()
+    #res = maps.geocode(loc_center)[0]
+    #location = res['geometry']['location']
+    location = {'lat': 24.8015877, 'lng': 120.9715883}
 
+    all = moving_store_scraper(
+                                keyword = '火車站',
+                                search_center = location,
+                                admin_area = 'Hsinchu',
+                                radius = 50,
+                                ranging = 0,
+                                next_page_token=None,
+                                objects=None,
+                                place_type='station',
+                                place_sub_type='station',
+                                mode="max_area"
+                            )
 
-    parkings = moving_store_scraper(
-        maps = maps,
-        keyword = '停車場',
-        search_center = location,
-        admin_area = '台南',
-        radius = 500,
-        ranging = 0,
-        next_page_token=None,
-        objects=None,
-        place_type='station',
-        place_sub_type='parking',
-        mode="max_area"
-    )
+    print("Finish Google search step!")
 
-    for p in parkings:
-        print(p.__dict__)
+    for p in all:
+        print(p.__dict__)'''
+
+    a = Hotel.objects.all()
+    print(a)
+
 

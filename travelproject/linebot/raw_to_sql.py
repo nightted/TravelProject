@@ -1,19 +1,11 @@
-from django.test import TestCase
-from django.conf import settings
-
 import pickle
 import os
-import django
-from linebot.tools import get_digits
+from linebot.tools import set_env_attr
 
-# [NOTE!] : 這邊解法 from https://blog.csdn.net/kong_and_whit/article/details/104167178?utm_medium=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.not_use_machine_learn_pai&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.not_use_machine_learn_pai
-#           另外 content root path 要改成 django 的 root (travelproject) , 而不是 Venv 的 root !!!
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "travelproject.settings")
-django.setup()
+set_env_attr()  # set env attrs
+from linebot.models import *
 
-from linebot.models import Hotel , Resturant , Station , Sightseeing , Place , Comment , Picture
-
-DICT_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/city data/Tainan/dict data/Tainan_all_objects_dict'
+DICT_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/city_data/Tainan/'
 
 def save_pkl(path, data):
     with open(path, "wb") as pkl:
@@ -24,18 +16,31 @@ def load_pkl(path):
         data = pickle.load(pkl)
     return data
 
-def set_sql_data(type):
+def set_sql_data(data_path , types , hash_types , city = None ):
 
-    Tainan_all_objects = load_pkl(DICT_PATH)
-    stores_dict = Tainan_all_objects[type]
+    load_data = load_pkl(data_path)
+    print(type(load_data))
 
-    for store_dict in stores_dict:
-        hash_type[type].create_obj_by_dict(**store_dict) # create store objs
+    # if is list of dicts
+    if isinstance(load_data , list):
+        for data in load_data:
+            hash_types[types].create_obj_by_dict(**data) # create store objs
 
-if __name__  == '__main__' :
+    # if is numpy array
+    if type(load_data).__module__ == np.__name__:
+        if not city:
+            raise NameError('Array data requires city as attribute!')
 
+        data = load_data.tolist()
+        hash_types[types].create_array_object(
+            admin_area = city,
+            name = types,
+            arr = data
+        ) # remember the type is "LIST" !
 
-    hash_type = {
+def city_data_toSQL( city , base_path = DICT_PATH ):
+
+    hash_types = {
         'resturant': Resturant,
         'train': Station,
         'hotel': Hotel,
@@ -48,5 +53,41 @@ if __name__  == '__main__' :
         'porkrice': Resturant
     }
 
-    set_sql_data('hotel')
+    for types in hash_types.keys():
+
+        data_path = os.path.join(base_path , 'dict_data' , f'{city}_{types}_dict')
+        try:
+            set_sql_data(data_path=data_path,
+                         types=types ,
+                         hash_types=hash_types
+                         )
+        except KeyError:
+            print(f'Not contain this type {types} data!')
+
+def density_data_toSQL(city  , base_path = DICT_PATH ):
+
+    hash_types = {
+        'bs' : Array_2d ,
+        'cn' : Array_2d ,
+        'eel' : Array_2d ,
+        'gru' : Array_2d ,
+        'h' : Array_2d ,
+        'pr' : Array_2d ,
+        'rs' : Array_2d ,
+        'gridtolatlng' : Array_3d
+    }
+
+    for types in hash_types.keys():
+
+        data_path = os.path.join(base_path , 'density_data' , f'density_{types}')
+        try:
+            set_sql_data(data_path=data_path,
+                         types=types,
+                         hash_types=hash_types,
+                         city=city)
+        except KeyError:
+            print(f'Not contain this type {types} data!')
+
+if __name__  == '__main__' :
+    density_data_toSQL(city='Tainan')
 

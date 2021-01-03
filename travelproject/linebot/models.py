@@ -13,7 +13,7 @@ from linebot.tools import distance , day_to_datetime
 # from ORM object to hotel object ...
 # May be it can combine with Hotel class
 
-
+# BASIC class of places
 class Place(models.Model):
 
     # basic property
@@ -24,7 +24,7 @@ class Place(models.Model):
     lat = models.FloatField(default = 0)
     rating = models.FloatField(default = 0)
     admin_area = models.CharField(max_length=100)
-    address = models.TextField(blank=True)
+    address = models.TextField(null=True , blank=True , default=None )
     place_id = models.TextField(blank=True)
 
     __hash__ = models.Model.__hash__  # [NOTE!] : https://github.com/AliLozano/django-messages-extends/pull/26 to solve the problem of can't delete objects
@@ -34,9 +34,6 @@ class Place(models.Model):
 
     def __eq__(self, other):
         return self.name == other.name and self.place_id == other.place_id # judge 2 places by comparing their name and place-id
-
-    class meta:
-        abstract = True
 
 class Resturant(Place):
 
@@ -163,12 +160,10 @@ class Hotel(Place):
                 # "NOT PASS" name comparison ,not construct static property here !
                 print(f'This hotel {name_booking} is not the same hotel as {self.name}!')
 
-
-
         else:
             print(f"Can't find this hotel {self.name}'s information !")
 
-        self.save() # saving the change to database
+
 
 
     def construct_static_attr(self, store_dict):
@@ -205,6 +200,8 @@ class Hotel(Place):
 
             elif self.room_source == 'Hotel.com':
                 pass
+
+            self.save()  # saving the change to database
 
         else:
             print('[WARNING] Need to get room_source and source_name !')
@@ -305,6 +302,7 @@ class Picture(models.Model):
 
 class Array_2d(models.Model):
 
+    admin_area = models.CharField(max_length=20 , default= '')
     name = models.CharField(max_length=20)
     array = ArrayField(
                         ArrayField(
@@ -313,13 +311,16 @@ class Array_2d(models.Model):
                       )
 
     @classmethod
-    def create_array_object(cls ,name , arr):
+    def create_array_object(cls ,name , arr , admin_area):
 
         # if it's np array , transform to list
         if type(arr) != list:
             arr = arr.tolist()
 
-        return cls(name = name ,array = arr)
+        obj = cls.objects.create(name = name ,
+                                 array = arr ,
+                                 admin_area=admin_area)
+        return obj
 
     def get_array(self):
         return self.array
@@ -330,6 +331,7 @@ class Array_2d(models.Model):
 
 class Array_3d(models.Model):
 
+    admin_area = models.CharField(max_length=20 , default= '')
     name = models.CharField(max_length=20)
     array = ArrayField(
                         ArrayField(
@@ -340,13 +342,16 @@ class Array_3d(models.Model):
                       )
 
     @classmethod
-    def create_array_object(cls ,name , arr):
+    def create_array_object(cls ,name , arr , admin_area):
 
         # if it's np array , transform to list
         if type(arr) != list:
             arr = arr.tolist()
 
-        return cls(name = name ,array = arr)
+        obj = cls.objects.create(name=name,
+                                 array=arr,
+                                 admin_area=admin_area)
+        return obj
 
     def get_array(self):
         return self.array
