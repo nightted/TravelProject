@@ -156,10 +156,12 @@ class Hotel(Place):
 
                 print(f'Booking contain this hotel : {name_booking}')
 
+
             else:
                 # "NOT PASS" name comparison ,not construct static property here !
                 print(f'This hotel {name_booking} is not the same hotel as {self.name}!')
 
+            print('\n')
         else:
             print(f"Can't find this hotel {self.name}'s information !")
 

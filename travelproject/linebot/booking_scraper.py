@@ -193,7 +193,7 @@ def get_hotel_information(
         'Tainan' : '台南' ,
         'Hsinchu' : '新竹' ,
         'Yilan' : '宜蘭' ,
-        'Hualian' : '花蓮'
+        'Hualien' : '花蓮'
         # continue to update ....
     }
 

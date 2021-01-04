@@ -1,6 +1,7 @@
 import numpy as np
 import math
 from functools import partial
+import seaborn as sns
 
 from linebot.google_map_scraper import rating_modify , grid_generator , init_gmaps
 from linebot.save_load import load_pkl
@@ -11,13 +12,13 @@ from linebot.models import *
 
 
 # GLOBAL PARAMETER
-grid_to_latlng = load_pkl('grid_to_latlng/grid_to_latlng') # grid row-column idx to lng-lat coordinate
 lng_1 = 102.516520*1000 # 1 longitude to meters
 lat_1 = 110.740000*1000 # 1 latitude to meters
 center_of_city = {
     "Tainan" : {'lat': 22.9913113, 'lng': 120.198012} ,
     "Hsinchu" : {'lat': 24.8015877, 'lng': 120.9715883},
 } # search center (lat , lng) of cities
+
 
 
 # filter method
@@ -53,7 +54,7 @@ def local_density(
                     data_objects,  # form = [ object1 , object2  , ..... ]
                     rating_dependent = False,  # use modified rating score or not
                     jump_distance = 100,  # interval of scan spot
-                    ranging = 20,  # scan range
+                    ranging = 40,  # scan range
                     scan_distance = 300,  # scan radius of circle or side length of rectangle
                     scan_shape = "rectan"  # shape of scan area
                 ):
@@ -167,16 +168,16 @@ def search_peak(admin_area ,
 
     # ---------- INITIALIZE ----------
     # init of grid to lat , lng transform matrix
-    grid_to_latlng = Array_3d.objects.get(name = 'gridtolatlng' , admin_area = admin_area)
+    grid_to_latlng = Array_3d.objects.get(name = 'gridtolatlng' , admin_area = admin_area).array
 
     # the minimum score of point to find (it's too far out of city if score less than this value!)
     demand_threshold = 3
 
     # the weights of basic density(for local popularity) , including: hotel , resturant , con_store density
     basic_weights = {
-        'rs': 1,
-        'cn': 0.5,
-        'h': 0.25
+        'resturant': 1,
+        'con': 0.5,
+        'hotel': 0.25
     }
 
     # the weights of special food(You want to eat!) density , such : porkrice , eulnooles , beefsoup ..
@@ -186,7 +187,7 @@ def search_peak(admin_area ,
     corrections = [1] * len(kwargs) if not silence_demand else [-1] * len(basic_weights) + [1] * (len(kwargs) - len(basic_weights))
 
     # initialize data of train_station and sightseeing (for 1/r wighting use)
-    stations = Station.objects.get(place_sub_type = 'station' , admin_area = admin_area)
+    stations = Station.objects.filter(place_sub_type = 'station' , admin_area = admin_area)
     station_position = [[station.lng, station.lat] for station in stations ]
     sightseeing_positions = get_latlng_directly(target_sigtseeings , admin_area) if target_sigtseeings else []
 
@@ -198,39 +199,45 @@ def search_peak(admin_area ,
     density_name = [name.split('_')[1] for name in kwargs.keys()]  # all the name of densitys => [rs , cn , h , bs , pr ..]
     shape_W_L = density_stack.shape[1]
 
+    excludes = []
     # main loop for finding peaks
     for i in range(shape_W_L):
         for j in range(shape_W_L):
 
-            surrounding = [[k, l] for k in range(i - 1, i + 2) for l in range(j - 1, j + 2) if (k != i or l != j) and (
-                                                                                    shape_W_L > k > 0  and shape_W_L > l > 0)]  # find surranding 8 positions
+            if [i , j] not in excludes: # if not excludes points
 
-            # score of surroundings
-            density_surroundings = [density_stack[:, pos_x, pos_y] for pos_x, pos_y in surrounding]
-            score_surrounding = []
-            for density_surrounding in density_surroundings:
+                # find surrounding 8 positions
+                surrounding = [[k, l] for k in range(i - 1, i + 2) for l in range(j - 1, j + 2) if (k != i or l != j) and (shape_W_L > k >= 0  and shape_W_L > l >= 0)]
+
+                # score of surroundings
+                density_surroundings = [density_stack[:, pos_x, pos_y] for pos_x, pos_y in surrounding]
+                score_surrounding = []
+                for density_surrounding in density_surroundings:
+                    score = 0
+                    for correction, name, density in zip(corrections, density_name, density_surrounding):
+                        score += correction * basic_weights.get(name, food_weights) * density
+                    score_surrounding.append(score)
+
+                # score of center
+                density_center = density_stack[:, i, j]
                 score = 0
-                for correction, name, density in zip(corrections, density_name, density_surrounding):
+                for correction, name, density in zip(corrections, density_name, density_center):
                     score += correction * basic_weights.get(name, food_weights) * density
-                score_surrounding.append(score)
+                score_center = score
 
-            # score of center
-            density_center = density_stack[:, i, j]
-            score = 0
-            for correction, name, density in zip(corrections, density_name, density_center):
-                score += correction * basic_weights.get(name, food_weights) * density
-            score_center = score
+                # if center larger than all surroundings and larger than minimum threshold , keep the point
+                if len(list(filter(lambda x: x < score_center, score_surrounding))) == 8 and abs(score_center) > demand_threshold:
 
-            # if center larger than all surroundings and larger than minimum threshold , keep the point
-            if len(list(filter(lambda x: x < score_center, score_surrounding))) == 8 and abs(score_center) > demand_threshold:
+                    excludes = excludes + surrounding # store the excludes points ( if the points is a peak , the surrounding points must not be peaks !)
 
+                    current_position = grid_to_latlng[i][j]
+                    positions_distance = list(map(lambda x : distance(current_position , x), all_positions))  # distance from current position to all_positions
+                    positions_distance_weighting = sum([1000.0 / distance for distance in positions_distance])  # calculate 1/r weights for all_positions
 
-                current_position = grid_to_latlng[i][j]
-                positions_distance = list(map(lambda x : distance(current_position , x), all_positions))  # distance from current position to all_positions
-                positions_distance_weighting = sum([1000.0 / distance for distance in positions_distance])  # calculate 1/r weights for all_positions
-
-                peaks.append([list(grid_to_latlng[i][j]), score_center * positions_distance_weighting])
-                # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
+                    peaks.append([list(grid_to_latlng[i][j]), score_center * positions_distance_weighting])
+                    # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
+                else:
+                    continue
 
             else:
                 continue

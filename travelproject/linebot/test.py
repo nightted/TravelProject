@@ -1,10 +1,10 @@
 from linebot.async_scraper import async_get_hotel_information_by_date
 from linebot.google_map_scraper import moving_store_scraper , init_gmaps
 
-
 import time
 import matplotlib.pyplot as plt
 from linebot.tools import set_env_attr
+from linebot.density_analysis import *
 
 set_env_attr()
 from linebot.models import *
@@ -22,7 +22,7 @@ def test_hotel_available(day_range , hotel , num_people , num_rooms):
                                                  destination_admin = '台南',
                                                  instant_information = True )
 
-        for ele in sorted(r, reverse=False, key=lambda x: x['queried_date']):
+        for ele in sorted(res, reverse=False, key=lambda x: x['queried_date']):
 
             print(f" 日期 : {ele['queried_date']}  , 推薦房源 : {ele['room_recommend']} , {ele['room_remainings']} , 一晚 {ele['price']} TWD !")
 
@@ -82,7 +82,23 @@ if __name__ == '__main__':
     for p in all:
         print(p.__dict__)'''
 
-    a = Hotel.objects.all()
-    print(a)
+
+    '''parkings = Place.objects.filter(admin_area='Tainan', place_sub_type='parking')
+    out , MAX_Rho, MAX_position = local_density(parkings , rating_dependent=False)
+    density = out[0]
+    print(density.shape)
+    Array_2d.create_array_object(name='parking' , arr = density , admin_area='Tainan')'''
+
+
+    density_resturant = Array_2d.objects.get(name='resturant' ,admin_area='Tainan').get_np_array()
+    density_hotel = Array_2d.objects.get(name='hotel', admin_area='Tainan').get_np_array()
+    density_con = Array_2d.objects.get(name='con', admin_area='Tainan').get_np_array()
+    peaks = search_peak(admin_area='Tainan',
+                        density_resturant=density_resturant,
+                        density_hotel=density_hotel,
+                        density_con=density_con,
+                        )
+    print(peaks)
+
 
 

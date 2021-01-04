@@ -3,7 +3,6 @@ import googlemaps
 from linebot.tools import find_english_char , get_digits , read_key ,set_env_attr
 
 set_env_attr()  # set env attrs
-from linebot.google_map_scraper import init_gmaps
 from linebot.models import *
 
 
@@ -111,7 +110,7 @@ def extract_address_by_geocode(maps, name):
 
     # firstly check place in taiwan or not
     if check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
-        address = geocode_subprocess(maps, geocode_result)
+        address = geocode_subprocess(geocode_result)
         return address
     else:
         print('[WARNING] This place is not in Taiwan!')
@@ -119,7 +118,7 @@ def extract_address_by_geocode(maps, name):
     return None
 
 
-def geocode_subprocess(maps, geocode_result):
+def geocode_subprocess(geocode_result):
     '''
     function : sub-process of address extraction
 
@@ -182,7 +181,7 @@ def geocode_subprocess(maps, geocode_result):
 def store_scraper(maps,
                   keyword,
                   location,
-                  location_admin,
+                  admin_area,
                   radius,
                   next_page_token,
                   objects,
@@ -215,7 +214,7 @@ def store_scraper(maps,
       #objects : store or hotel objects found
 
     '''
-    class_hash = {
+    place_class_hash = {
         'hotel': Hotel,
         'resturant': Resturant,
         'station': Station,
@@ -277,14 +276,14 @@ def store_scraper(maps,
                                'lng': lng,
                                'lat': lat,
                                'rating': rating,
-                               'admin_area': location_admin,
+                               'admin_area': admin_area,
                                'address': address,
                                'place_id': place_id
                            }
 
             # NOTE THAT , the store_obj generate here is NOT save to database yet !
             try :
-                store_obj = class_hash[place_type].create_obj_by_dict(**information)
+                store_obj = place_class_hash[place_type].create_obj_by_dict(**information)
             except KeyError:
                 raise NameError('Need to specify place CLASS NAME in class_hash table!')
 

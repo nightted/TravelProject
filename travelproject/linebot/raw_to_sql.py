@@ -19,7 +19,6 @@ def load_pkl(path):
 def set_sql_data(data_path , types , hash_types , city = None ):
 
     load_data = load_pkl(data_path)
-    print(type(load_data))
 
     # if is list of dicts
     if isinstance(load_data , list):
@@ -45,7 +44,7 @@ def city_data_toSQL( city , base_path = DICT_PATH ):
         'train': Station,
         'hotel': Hotel,
         'beefsoup': Resturant,
-        'EelNoodles': Resturant,
+        'eelnoodles': Resturant,
         'gruel': Resturant,
         'nightmarket': Sightseeing,
         'con': Resturant,
@@ -67,19 +66,19 @@ def city_data_toSQL( city , base_path = DICT_PATH ):
 def density_data_toSQL(city  , base_path = DICT_PATH ):
 
     hash_types = {
-        'bs' : Array_2d ,
-        'cn' : Array_2d ,
-        'eel' : Array_2d ,
-        'gru' : Array_2d ,
-        'h' : Array_2d ,
-        'pr' : Array_2d ,
-        'rs' : Array_2d ,
+        'beefsoup' : Array_2d ,
+        'con' : Array_2d ,
+        'eelnoodles' : Array_2d ,
+        'gruel' : Array_2d ,
+        'hotel' : Array_2d ,
+        'porkrice' : Array_2d ,
+        'resturant' : Array_2d ,
         'gridtolatlng' : Array_3d
     }
 
     for types in hash_types.keys():
 
-        data_path = os.path.join(base_path , 'density_data' , f'density_{types}')
+        data_path = os.path.join(base_path , 'density_data' , f'Tainan_{types}_density')
         try:
             set_sql_data(data_path=data_path,
                          types=types,
