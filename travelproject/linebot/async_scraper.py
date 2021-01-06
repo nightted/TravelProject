@@ -29,6 +29,8 @@ def async_main_construct_step_by_hotel(hotels):
     loop.run_until_complete(asyncio.wait(tasks)) # https://stackoverflow.com/questions/44048536/python3-get-result-from-async-method
     print('Finish comparison!')
 
+
+
 # Async for get hotel information
 async def async_get_hotel_information( **kwargs ):
 
@@ -44,10 +46,9 @@ def tasks_generator_for_get_hotel_information_by_date( dates , **kwargs ): # 定
         tasks.append(loop.create_task(async_get_hotel_information(  **kwargs , date = date )))
     return tasks
 
-def async_get_hotel_information_by_date(target_day , day_range , **kwargs ):
+def async_get_hotel_information_by_date(target_days , **kwargs ):
 
-    day_range = [i for i in range(-(day_range) , day_range+1 , 1)  ]
-    dates = [[get_date_string(target_day , i),get_date_string(target_day , i+1)] for i in day_range] # construct input date for func. get_hotel_information
+    dates = [[day , get_date_string(day ,1)] for day in target_days] # construct input date for func. get_hotel_information
     tasks = tasks_generator_for_get_hotel_information_by_date( dates = dates , **kwargs)
     res  , _ = loop.run_until_complete(asyncio.wait(tasks)) # https://stackoverflow.com/questions/44048536/python3-get-result-from-async-method
     res_dict = [ele.result() for ele in res]

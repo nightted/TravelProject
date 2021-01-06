@@ -7,7 +7,7 @@ import datetime
 from linebot.async_scraper import async_get_hotel_information_by_date
 from linebot.booking_scraper import get_detail_hotel_information
 from linebot.string_comparing import find_common_word_2str
-from linebot.tools import distance , day_to_datetime
+from linebot.tools import distance , day_to_datetime , generate_day_range
 
 
 # from ORM object to hotel object ...
@@ -210,40 +210,84 @@ class Hotel(Place):
 
 
     def construct_instant_attr(self,
-                               date=None ,
+                               queried_date,
                                day_range=2 ,
                                num_people=2 ,
                                num_rooms=1
                                ):
+        """
+        # function : construct instant information of hotels
+
+        :param date: e.g. "2021-03-25"
+        :param day_range:  range of +-day from target day to search
+        :param num_people:  number of people to book
+        :param num_rooms:  number of rooms to book
+
+        :return: None , directly save data in SQL
+        """
+
+        # TODO : 記得要寫 , 要是 instant inforamtion 已存在SQL裡 (例如 queried date 同一天) , 則直接用 SQL data ,不必再抓取
 
         if getattr(self, 'room_source', None) and getattr(self, 'source_name', None):
 
             # Instant property (from booking or agoda ..)
             if self.room_source == 'booking':
 
-                if not date:
+                if not queried_date:
                     raise NameError('Need to assign date ! ')
 
                 # if the day in range is before today , re-range day_range
-                if day_to_datetime(date , format='datetime') - datetime.timedelta(days=day_range) < datetime.datetime.now():
-                    day_range = (day_to_datetime(date , format='datetime') - datetime.now()).days
+                if day_to_datetime(queried_date , format='datetime') - datetime.timedelta(days=day_range) < datetime.datetime.now():
+                    day_range = (day_to_datetime(queried_date , format='datetime') - datetime.now()).days
 
 
-                # get hotel information async to increase scrape speed , rtype : list of dicts : [{} , {} ... ]
-                instant_inform = async_get_hotel_information_by_date(
-                                                                         target_day = date ,
-                                                                         day_range=day_range ,
+
+
+
+                # try to access exist instant data from SQL
+                exist_objs , unfinished_queried_date  = [] , []
+                for day in generate_day_range(queried_date , day_range):
+                    try:
+                        exist_objs.append( Hotel_Instance.objects.get(
+                                                                        query_date = datetime.date.today(),
+                                                                        queried_date = day,
+                                                                        hotel_id = self.pk
+                                                                     )
+                                          )
+
+                        print(f'This instant obj exist in the date : {day}!')
+
+                    except:
+                        print(f'This instant obj not exist in the date : {day}!')
+                        unfinished_queried_date.append(day)
+
+                # if SQL not found instant data in some queried dates  , scrape it .
+                if unfinished_queried_date:
+
+                    # get hotel information async to increase scrape speed , rtype : list of dicts : [{} , {} ... ]
+                    instant_inform = async_get_hotel_information_by_date(
+                                                                         target_days = unfinished_queried_date ,
                                                                          num_people = num_people ,
                                                                          num_rooms = num_rooms ,
                                                                          hotel_name = self.source_name ,
                                                                          instant_information=True ,
                                                                          destination_admin = self.admin_area ,
-                                                                     )
-                #print(instant_inform)
+                                                                         )
+                    #print(instant_inform)
+                    un_exist_objs = []
+                    for instant_dict in instant_inform:
+                        instant_dict.update({'num_rooms' : num_rooms})
+                        instant_obj = Hotel_Instance.create_objects(**instant_dict , hotel = self) # (Done , due to datetime format and datefield auto_now_add) : BUG in Hotel_instance __eq__ function !!!
+                        un_exist_objs.append(instant_obj)
 
-                for instant_dict in instant_inform:
-                    instant_dict.update({'num_rooms' : num_rooms})
-                    Hotel_Instance.create_objects(**instant_dict , hotel = self) # TODO : BUG in Hotel_instance __eq__ function !!!
+                    instant_objs = exist_objs + un_exist_objs  # combine it !
+
+                else:
+                    instant_objs = exist_objs
+
+                return instant_objs
+
+
 
             elif self.room_source == 'agoda:':
                 pass

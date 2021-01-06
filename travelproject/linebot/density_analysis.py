@@ -23,6 +23,16 @@ center_of_city = {
 
 # filter method
 def filter_by_criteria(obj, center, criteria, scan_shape='rectan'):
+    """
+    # function : To filter object fitted criteria
+
+    :param obj: object to check if fit criteria
+    :param center: search center
+    :param criteria: search "radius"
+    :param scan_shape: searc shape
+
+    :return: criteria fitted object
+    """
 
     # Judge if whether it's hotel object,
     # if so , check room_source exsit or not ; if not , set as True (belong to resturant or con)
@@ -144,10 +154,11 @@ def local_density(
 
 
 # finding the top10 hightest density position "consider hotels distribution"
-def search_peak(admin_area ,
+def search_peak(*density_objects,
+                admin_area ,
                 silence_demand=False,
-                target_sigtseeings=None ,
-                **kwargs):
+                target_sigtseeings=None
+                ):
     '''
     #function : search peaks from density grid maps
 
@@ -157,7 +168,7 @@ def search_peak(admin_area ,
 
     target_sigtseeings : target sightseeing customer want to go , type as : ['sightseeing1','sightseeing2']
 
-    **kwargs : the basic density maps you want to consider , ex : (density_rs = density_rs , density_h = density_h .. )
+    **densitys : the basic density "objects" you want to consider , ex : ('resturant' = density_restruant , 'hotel' = density_hotel .. )
 
     return : peaks with [ position_x(grid) ,position_y(grid) , density of resturant center , scors of center]
 
@@ -184,23 +195,21 @@ def search_peak(admin_area ,
     food_weights = 5
 
     # corrected weight for silence demand (from get min -> max ,so add negative weight -1)
-    corrections = [1] * len(kwargs) if not silence_demand else [-1] * len(basic_weights) + [1] * (len(kwargs) - len(basic_weights))
+    corrections = [1] * len(density_objects) if not silence_demand else [-1] * len(basic_weights) + [1] * (len(density_objects) - len(basic_weights))
 
     # initialize data of train_station and sightseeing (for 1/r wighting use)
     stations = Station.objects.filter(place_sub_type = 'station' , admin_area = admin_area)
     station_position = [[station.lng, station.lat] for station in stations ]
     sightseeing_positions = get_latlng_directly(target_sigtseeings , admin_area) if target_sigtseeings else []
-
     all_positions = station_position + sightseeing_positions # combine
 
     # initialize data of density
-    peaks = []
-    density_stack = np.array([density for _ , density in kwargs.items()])  # stack the all the densitys
-    density_name = [name.split('_')[1] for name in kwargs.keys()]  # all the name of densitys => [rs , cn , h , bs , pr ..]
+    density_name = [ density_obj.name for density_obj in density_objects ]  # all the name of densitys => [resturant , eelnoodles , ..]
+    density_stack = np.array([density_obj.array for density_obj in density_objects])  # stack the all the densitys
     shape_W_L = density_stack.shape[1]
 
-    excludes = []
     # main loop for finding peaks
+    peaks , excludes = [] , []
     for i in range(shape_W_L):
         for j in range(shape_W_L):
 

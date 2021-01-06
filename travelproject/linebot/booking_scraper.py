@@ -281,6 +281,10 @@ def extract_informations_from_soup( date , soup_content, soup_pic, instant_infor
         hotel_hot = check_alive_or_not(soup_content.find('div', {'class': 'rollover-s1 lastbooking'}),msg_if_none='快上網站訂房!').rstrip("\n").strip("\n")  # get the hot of hotels (instant information) 不是每個hotel都有此block !!!!!
         hotel_price = int(get_digits(str(soup_content.find('div', {'class': "bui-price-display__value"})).split('TWD')[1])[0])
 
+        '''if hotel_price == 1022:
+            print(
+                str(soup_content.find('div', {'class': "bui-price-display__value"}))
+            )'''
 
         # !!BUGS: price 部分有 /xa0124 encode 的問題
         return {
@@ -308,6 +312,7 @@ def extract_informations_from_soup( date , soup_content, soup_pic, instant_infor
 
         ### get below <div class="sr_item_photo sr_card_photo_wrapper" id="hotel_5621655">
         hotel_pic_link = soup_pic.find('img', {'class': "hotel_image"})['data-highres']  # get hotel review pic
+
 
         return {"href": hotel_hrefs,
                 "comment_num": hotel_comment_num,

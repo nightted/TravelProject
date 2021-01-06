@@ -64,9 +64,16 @@ def get_digits(text):
 
     return collect  # a list
 
+def generate_day_range(target_day , day_range ):
+
+    day_range = [i for i in range(-(day_range), day_range + 1, 1)]
+    dates = [ get_date_string(target_day, i) for i in day_range ]
+
+    return dates
+
 def get_date_string(target_day = None , delta_day=0):
     '''
-    # function : get +/- delta day of target day
+    # function : get +/- string of delta day from target day
 
     target_day : the day you want to search , likes '2020-12-10'
 
@@ -111,7 +118,6 @@ def distance(a, b):
     return ((delta_x_meter) ** 2 + (delta_y_meter) ** 2) ** 0.5
 
 
-# TODO : read API_KEY (wait modify)
 def read_key(key_path):
     with open(key_path, 'r') as f:
         KEY = f.read()
