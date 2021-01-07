@@ -1,10 +1,10 @@
 import numpy as np
 import math
 from functools import partial
-import seaborn as sns
+from scipy.ndimage.filters import maximum_filter
+from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 
 from linebot.google_map_scraper import rating_modify , grid_generator , init_gmaps
-from linebot.save_load import load_pkl
 from linebot.tools import set_env_attr , distance
 
 set_env_attr()  # set env attrs
@@ -152,6 +152,135 @@ def local_density(
     return density_matrix_form(density), MAX_Rho, MAX_position
 
 
+def detect_peaks(image):
+    """
+    Takes an image and detect the peaks using the local maximum filter.
+    Returns a boolean mask of the peaks (i.e. 1 when
+    the pixel's value is the neighborhood maximum, 0 otherwise)
+    """
+
+    # define an 8-connected neighborhood
+    neighborhood = generate_binary_structure(2,2)
+
+    #apply the local maximum filter; all pixel of maximal value
+    #in their neighborhood are set to 1
+    local_max = maximum_filter(image, footprint=neighborhood)==image
+    #local_max is a mask that contains the peaks we are
+    #looking for, but also the background.
+    #In order to isolate the peaks we must remove the background from the mask.
+
+    #we create the mask of the background
+    background = (image==0)
+
+    #a little technicality: we must erode the background in order to
+    #successfully subtract it form local_max, otherwise a line will
+    #appear along the background border (artifact of the local maximum filter)
+    eroded_background = binary_erosion(background, structure=neighborhood, border_value=1)
+
+    #we obtain the final mask, containing only peaks,
+    #by removing the background from the local_max mask (xor operation)
+    detected_peaks = local_max ^ eroded_background
+
+    return detected_peaks
+
+def maximum_filter_method(density_stack ,
+                          density_name,
+                          corrections ,
+                          grid_to_latlng ,
+                          all_positions ,
+                          basic_weights ,
+                          food_weights = 5 ,
+                          demand_threshold = 3
+                          ):
+
+    density_stack_weighted = [corr * basic_weights.get(den_name, food_weights) * matrix for corr, den_name, matrix in zip(corrections, density_name, density_stack)]  # get weighted stacking matrix (3D)
+    density_stack_weighted = np.sum(density_stack_weighted, axis=0)  # Score : sum over all type of density  (2D)
+    peaks_binary = detect_peaks(density_stack_weighted)
+
+    peaks = []
+    for idx_r, row in enumerate(peaks_binary):
+        for idx_c, col in enumerate(row):
+
+            if col:  # if True , means it's peaks.
+
+                peak_score = density_stack_weighted[idx_r][idx_c]
+                if peak_score > demand_threshold: # the peak score must larger than threshold
+
+                    current_position = grid_to_latlng[idx_r][idx_c]
+                    positions_distance = list(map(lambda x: distance(current_position, x), all_positions))  # distance from current position to all_positions
+                    positions_distance_weighting = sum([1000.0 / distance for distance in positions_distance])  # calculate 1/r weights for all_positions
+
+                    peaks.append([list(current_position), peak_score * positions_distance_weighting])
+
+
+
+
+    return peaks
+
+def iterate_method(density_stack ,
+                   density_name,
+                   corrections ,
+                   grid_to_latlng ,
+                   all_positions ,
+                   basic_weights ,
+                   food_weights = 5 ,
+                   demand_threshold = 3
+                   ):
+
+    # initialize params
+    shape_W_L = density_stack.shape[1]
+    peaks, excludes = [], []
+
+    # main loops for finding peaks
+    for i in range(shape_W_L):
+        for j in range(shape_W_L):
+
+            if [i, j] not in excludes:  # if not excludes points
+
+                # find surrounding 8 positions
+                # TODO : reduce to judge 4 points (top , down , left , right) around point i ,j
+                # surrounding = [[k, l] for k in range(i - 1, i + 2) for l in range(j - 1, j + 2) if(k != i or l != j) and (shape_W_L > k >= 0 and shape_W_L > l >= 0)]
+                surrounding_x = [[k, j] for k in range(i - 1, i + 2) if (k != i) and shape_W_L > k >= 0]
+                surrounding_y = [[i, k] for k in range(j - 1, j + 2) if (k != j) and shape_W_L > k >= 0]
+                surrounding = surrounding_x + surrounding_y
+
+                # score of surroundings
+                density_surroundings = [density_stack[:, pos_x, pos_y] for pos_x, pos_y in surrounding]
+                score_surrounding = []
+                for density_surrounding in density_surroundings:
+                    score = 0
+                    for correction, name, density in zip(corrections, density_name, density_surrounding):
+                        score += correction * basic_weights.get(name, food_weights) * density
+                    score_surrounding.append(score)
+
+                # score of center
+                density_center = density_stack[:, i, j]
+                score = 0
+                for correction, name, density in zip(corrections, density_name, density_center):
+                    score += correction * basic_weights.get(name, food_weights) * density
+                score_center = score
+
+                # if center larger than all surroundings and larger than minimum threshold , keep the point
+                if len(list(filter(lambda x: x < score_center, score_surrounding))) == 4 and abs(score_center) > demand_threshold:
+
+                    excludes = excludes + surrounding  # store the excludes points ( if the points is a peak , the surrounding points must not be peaks !)
+
+                    current_position = grid_to_latlng[i][j]
+                    positions_distance = list(map(lambda x: distance(current_position, x),
+                                                  all_positions))  # distance from current position to all_positions
+                    positions_distance_weighting = sum([1000.0 / distance for distance in
+                                                        positions_distance])  # calculate 1/r weights for all_positions
+
+                    peaks.append([list(grid_to_latlng[i][j]), score_center * positions_distance_weighting])
+                    # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
+                else:
+                    continue
+
+            else:
+                continue
+
+    return peaks
+
 
 # finding the top10 hightest density position "consider hotels distribution"
 def search_peak(*density_objects,
@@ -206,52 +335,22 @@ def search_peak(*density_objects,
     # initialize data of density
     density_name = [ density_obj.name for density_obj in density_objects ]  # all the name of densitys => [resturant , eelnoodles , ..]
     density_stack = np.array([density_obj.array for density_obj in density_objects])  # stack the all the densitys
-    shape_W_L = density_stack.shape[1]
 
-    # main loop for finding peaks
-    peaks , excludes = [] , []
-    for i in range(shape_W_L):
-        for j in range(shape_W_L):
-
-            if [i , j] not in excludes: # if not excludes points
-
-                # find surrounding 8 positions
-                surrounding = [[k, l] for k in range(i - 1, i + 2) for l in range(j - 1, j + 2) if (k != i or l != j) and (shape_W_L > k >= 0  and shape_W_L > l >= 0)]
-
-                # score of surroundings
-                density_surroundings = [density_stack[:, pos_x, pos_y] for pos_x, pos_y in surrounding]
-                score_surrounding = []
-                for density_surrounding in density_surroundings:
-                    score = 0
-                    for correction, name, density in zip(corrections, density_name, density_surrounding):
-                        score += correction * basic_weights.get(name, food_weights) * density
-                    score_surrounding.append(score)
-
-                # score of center
-                density_center = density_stack[:, i, j]
-                score = 0
-                for correction, name, density in zip(corrections, density_name, density_center):
-                    score += correction * basic_weights.get(name, food_weights) * density
-                score_center = score
-
-                # if center larger than all surroundings and larger than minimum threshold , keep the point
-                if len(list(filter(lambda x: x < score_center, score_surrounding))) == 8 and abs(score_center) > demand_threshold:
-
-                    excludes = excludes + surrounding # store the excludes points ( if the points is a peak , the surrounding points must not be peaks !)
-
-                    current_position = grid_to_latlng[i][j]
-                    positions_distance = list(map(lambda x : distance(current_position , x), all_positions))  # distance from current position to all_positions
-                    positions_distance_weighting = sum([1000.0 / distance for distance in positions_distance])  # calculate 1/r weights for all_positions
-
-                    peaks.append([list(grid_to_latlng[i][j]), score_center * positions_distance_weighting])
-                    # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
-                else:
-                    continue
-
-            else:
-                continue
+    # using peaks-search algorithm to find peaks
+    peaks = maximum_filter_method(density_stack=density_stack,
+                                  density_name=density_name,
+                                  corrections=corrections,
+                                  grid_to_latlng=grid_to_latlng,
+                                  all_positions=all_positions,
+                                  basic_weights=basic_weights,
+                                  food_weights=food_weights,
+                                  demand_threshold=demand_threshold)
 
     # sort peaks by scores
+
+    for location , score  in sorted(peaks, reverse=True, key=lambda x: x[1]):
+        print(f'location : {location} , score : {score} ')
+
     peaks = sorted(peaks, reverse=True, key=lambda x: x[1])
     peaks = [peak_inform[0] for peak_inform in peaks]  # extract positions only
 

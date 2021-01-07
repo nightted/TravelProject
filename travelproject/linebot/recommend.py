@@ -1,5 +1,8 @@
 import time as t
 import random
+import numpy as np
+import matplotlib.pyplot as pp
+
 from linebot.density_analysis import *
 from linebot.tools import set_env_attr
 
@@ -87,6 +90,7 @@ def find_best_hotels(*density_objects,
                             )
 
     t3 = t.time()
+    print(top_peaks)
 
     # get closest hotels around those peaks
     topN = topN if topN < len(top_peaks) else len(top_peaks)  # choose topN peaks
@@ -103,9 +107,10 @@ def find_best_hotels(*density_objects,
 
     return select_hotels, select_points
 
+
 if __name__ == '__main__':
 
-    '''admin_area = 'Tainan'
+    admin_area = 'Tainan'
 
     t1 = t.time()
 
@@ -130,15 +135,33 @@ if __name__ == '__main__':
 
     for hotel in select_hotels:
 
-        instant_objs = hotel.construct_instant_attr(date='2021-02-01' , day_range=2 ,num_rooms=1 , num_people=2)
+        instant_objs = hotel.construct_instant_attr(queried_date='2021-02-10' , day_range=2 ,num_rooms=1 , num_people=2)
         for obj in instant_objs:
             print(hotel.source_name , obj.queried_date , obj.room_recommend , obj.room_remainings , obj.price)
 
     t4 = t.time()
 
-    print(f"t1~t2 = {t2 - t1} , t2~t3 = {t3 - t2} , t3~t4 = {t4 - t3}")'''
+    print(f"t1~t2 = {t2 - t1} , t2~t3 = {t3 - t2} , t3~t4 = {t4 - t3}")
 
-    h = Hotel.objects.get(name = 'Journey Hostel 掘旅')
+
+
+    '''h = Hotel.objects.get(name = 'Journey Hostel 掘旅')
     objs = h.construct_instant_attr(queried_date='2021-02-10',num_people=2,num_rooms=1 ,day_range=3)
     for obj in objs:
-        print(obj.queried_date  ,obj.price)
+        print(obj.queried_date  ,obj.price)'''
+
+
+
+
+    '''admin_area = 'Tainan'
+    d_rs = Array_2d.objects.get(admin_area=admin_area, name='resturant').get_np_array()
+    r = detect_peaks(d_rs)
+    cnt_all = 0
+    cnt_t = 0
+    for x , row in enumerate(r):
+        for y , col in enumerate(row):
+            cnt_all+=1
+            if col:
+                cnt_t+=1
+                print(x,y)
+    print(cnt_t , cnt_all)'''
