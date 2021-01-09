@@ -271,7 +271,8 @@ def search_peak(*density_objects,
     # ---------- INITIALIZE ----------
     # init of grid to lat lng transform matrix , city_center , tolerance_distance
     grid_to_latlng = Array_3d.objects.get(name = 'gridtolatlng' , admin_area = admin_area).array
-    city_center = center_of_city[admin_area]['location']
+    city_center = [ center_of_city[admin_area]['location']['lng'],
+                    center_of_city[admin_area]['location']['lat'] ]
     tolerance_distance = 10000 # the max tolerance distance to reach
 
     # the minimum score of point to find ( don't consider peak with score less than this value )
