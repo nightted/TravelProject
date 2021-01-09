@@ -1,9 +1,6 @@
-from linebot.async_scraper import async_get_hotel_information_by_date
-from linebot.google_map_scraper import moving_store_scraper , init_gmaps
-
 import time
 import matplotlib.pyplot as plt
-from linebot.tools import set_env_attr
+
 from linebot.density_analysis import *
 
 set_env_attr()
@@ -90,15 +87,21 @@ if __name__ == '__main__':
     Array_2d.create_array_object(name='parking' , arr = density , admin_area='Tainan')'''
 
 
-    density_resturant = Array_2d.objects.get(name='resturant' ,admin_area='Tainan').get_np_array()
-    density_hotel = Array_2d.objects.get(name='hotel', admin_area='Tainan').get_np_array()
-    density_con = Array_2d.objects.get(name='con', admin_area='Tainan').get_np_array()
-    peaks = search_peak(admin_area='Tainan',
-                        density_resturant=density_resturant,
-                        density_hotel=density_hotel,
-                        density_con=density_con,
-                        )
-    print(peaks)
+    print(Hotel.objects.all())
 
 
+'''class Resturant(Place):
+    nearby_hotel = models.ManyToManyField(Hotel, related_name='nearby_hotel')
+
+    @classmethod
+    def create_obj_by_dict(cls, **store_dict):
+        # basic attribute
+
+        admin_area = store_dict.get('admin_area')
+        filter_store_by_criteria(Hotel.objects.filter(admin_area=admin_area))
+
+        obj = cls(**store_dict)
+        if obj not in cls.objects.all():
+            obj.save()  # if not has same data in database , update it .
+        return obj'''
 

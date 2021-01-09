@@ -8,6 +8,7 @@ from linebot.async_scraper import async_get_hotel_information_by_date
 from linebot.booking_scraper import get_detail_hotel_information
 from linebot.string_comparing import find_common_word_2str
 from linebot.tools import distance , day_to_datetime , generate_day_range
+from linebot.object_filter import filter_store_by_criteria
 
 
 # from ORM object to hotel object ...
@@ -35,35 +36,7 @@ class Place(models.Model):
     def __eq__(self, other):
         return self.name == other.name and self.place_id == other.place_id # judge 2 places by comparing their name and place-id
 
-class Resturant(Place):
 
-    @classmethod
-    def create_obj_by_dict(cls, **store_dict):
-        # basic attribute
-        obj = cls(**store_dict)
-        if obj not in cls.objects.all():
-            obj.save()  # if not has same data in database , update it .
-        return obj
-
-class Station(Place):
-
-    @classmethod
-    def create_obj_by_dict(cls, **store_dict):
-        # basic attribute
-        obj = cls(**store_dict)
-        if obj not in cls.objects.all():
-            obj.save()  # if not has same data in database , update it .
-        return obj
-
-class Sightseeing(Place):
-
-    @classmethod
-    def create_obj_by_dict(cls, **store_dict):
-        # basic attribute
-        obj = cls(**store_dict)
-        if obj not in cls.objects.all():
-            obj.save()  # if not has same data in database , update it .
-        return obj
 
 class Hotel(Place):
 
@@ -87,6 +60,8 @@ class Hotel(Place):
                   other property including source and detail property set as None (NOT contain pics and comments attributes) 
     
     '''
+    def return_location(self):
+        return [self.lng , self.lat]
 
     @classmethod
     def create_obj_by_dict(cls, **store_dict):
@@ -226,7 +201,7 @@ class Hotel(Place):
         :return: None , directly save data in SQL
         """
 
-        # TODO : 記得要寫 , 要是 instant inforamtion 已存在SQL裡 (例如 queried date 同一天) , 則直接用 SQL data ,不必再抓取
+        # (Done): 記得要寫 , 要是 instant inforamtion 已存在SQL裡 (例如 queried date 同一天) , 則直接用 SQL data ,不必再抓取
 
         if getattr(self, 'room_source', None) and getattr(self, 'source_name', None):
 
@@ -240,13 +215,10 @@ class Hotel(Place):
                 if day_to_datetime(queried_date , format='datetime') - datetime.timedelta(days=day_range) < datetime.datetime.now():
                     day_range = (day_to_datetime(queried_date , format='datetime') - datetime.now()).days
 
-
-
-
-
                 # try to access exist instant data from SQL
                 exist_objs , unfinished_queried_date  = [] , []
                 for day in generate_day_range(queried_date , day_range):
+
                     try:
                         exist_objs.append( Hotel_Instance.objects.get(
                                                                         query_date = datetime.date.today(),
@@ -255,10 +227,9 @@ class Hotel(Place):
                                                                      )
                                           )
 
-                        print(f'This instant obj exist in the date : {day}!')
-
+                        #print(f' Hotel {self.name} instant obj exist in the date : {day}!')
                     except:
-                        print(f'This instant obj not exist in the date : {day}!')
+                        #print(f'Hotel {self.name} instant obj not exist in the date : {day}!')
                         unfinished_queried_date.append(day)
 
                 # if SQL not found instant data in some queried dates  , scrape it .
@@ -276,6 +247,7 @@ class Hotel(Place):
                     #print(instant_inform)
                     un_exist_objs = []
                     for instant_dict in instant_inform:
+
                         instant_dict.update({'num_rooms' : num_rooms})
                         instant_obj = Hotel_Instance.create_objects(**instant_dict , hotel = self) # (Done , due to datetime format and datefield auto_now_add) : BUG in Hotel_instance __eq__ function !!!
                         un_exist_objs.append(instant_obj)
@@ -287,13 +259,10 @@ class Hotel(Place):
 
                 return instant_objs
 
-
-
             elif self.room_source == 'agoda:':
                 pass
             else:
                 pass
-
         else:
             print('[WARNING] Need to get room_source and source_name !')
 
@@ -333,6 +302,7 @@ class Hotel_Instance(models.Model):
                and self.price == other.price \
                and self.room_recommend == other.room_recommend
 
+
 # comment and pics only for hotel datasheet
 class Comment(models.Model):
 
@@ -345,6 +315,44 @@ class Picture(models.Model):
 
     pics = models.TextField(blank=True)
     store = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name='picture')
+
+class Resturant(Place):
+
+    nearby_hotel = models.ManyToManyField(Hotel, related_name='nearby_hotel')
+
+    # TODO : construct many to many field from resturants to hotels
+    @classmethod
+    def create_obj_by_dict(cls, **store_dict):
+        # basic attribute
+        admin_area = store_dict.get('admin_area')
+        filter_store_by_criteria(Hotel.objects.filter(admin_area=admin_area))
+
+        obj = cls(**store_dict)
+        if obj not in cls.objects.all():
+            obj.save()  # if not has same data in database , update it .
+        return obj
+
+
+class Station(Place):
+
+    @classmethod
+    def create_obj_by_dict(cls, **store_dict):
+        # basic attribute
+        obj = cls(**store_dict)
+        if obj not in cls.objects.all():
+            obj.save()  # if not has same data in database , update it .
+        return obj
+
+
+class Sightseeing(Place):
+
+    @classmethod
+    def create_obj_by_dict(cls, **store_dict):
+        # basic attribute
+        obj = cls(**store_dict)
+        if obj not in cls.objects.all():
+            obj.save()  # if not has same data in database , update it .
+        return obj
 
 class Array_2d(models.Model):
 

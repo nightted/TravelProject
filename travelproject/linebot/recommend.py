@@ -1,9 +1,8 @@
 import time as t
 import random
-import numpy as np
-import matplotlib.pyplot as pp
 
 from linebot.density_analysis import *
+from linebot.object_filter import filter_store_by_criteria
 from linebot.tools import set_env_attr
 
 set_env_attr()  # set env attrs
@@ -15,6 +14,7 @@ def find_hotel_by_points(points,
                          admin_area ,
                          gmap_rating_threshold=4.0,
                          booking_rating_threshold=8.0):
+
     def threshold_judge(hotel):
 
         source_rating = getattr(hotel, 'source_rating', None)
@@ -23,6 +23,7 @@ def find_hotel_by_points(points,
 
         else:
             return True if float(source_rating) >= booking_rating_threshold else False
+
 
     hotel_objects_data = Hotel.objects.filter(admin_area = admin_area) # get all hotels from that administrative area
 
@@ -47,7 +48,7 @@ def find_hotel_by_points(points,
 def find_best_hotels(*density_objects,
                      admin_area ,
                      silence_demand=False,
-                     target_sigtseeing=None,
+                     target_sightseeing=None,
                      target_food=None,
                      topN=50,
                      randomN=3,
@@ -69,16 +70,24 @@ def find_best_hotels(*density_objects,
 
     # if target food exist , get food key-word and add corresponding density
     if target_food:
+
         select_food = []
         for key_food in hash_name_obj_density.keys():
             for food in target_food:
                 if find_common_word_2str(food, key_food)[0] >= 2:
-                    select_food.append(key_food)
+                    select_food.append(key_food) # add food into list to calculate density
+                    target_food.remove(food) # remove this food in original list
 
         select_food = list(set(select_food))
-        food_names = [ hash_name_obj_density[food] for food in select_food ] # get food names
-        food_density_objects = [ Array_2d.objects.get(name = food_name) for food_name in food_names ]  # get food density objs
-        density_objects = [*density_objects, *food_density_objects] # combine with input density
+        if select_food:
+
+            food_names = [ hash_name_obj_density[food] for food in select_food ] # get food names
+            food_density_objects = [ Array_2d.objects.get(name = food_name) for food_name in food_names ]  # get food density objs
+            density_objects = [*density_objects, *food_density_objects] # combine with input density
+
+        if len(target_food) > 0:
+
+            target_sightseeing  = target_food + target_sightseeing if target_sightseeing else target_food # if some target food not found in  hash_name_obj_density , add it into target_sigtseeing list to further finding
 
     t2 = t.time()
 
@@ -86,24 +95,36 @@ def find_best_hotels(*density_objects,
     top_peaks = search_peak(*density_objects,
                             admin_area = admin_area,
                             silence_demand = silence_demand,
-                            target_sigtseeings = target_sigtseeing,
+                            target_sightseeing = target_sightseeing,
                             )
 
     t3 = t.time()
-    print(top_peaks)
 
     # get closest hotels around those peaks
     topN = topN if topN < len(top_peaks) else len(top_peaks)  # choose topN peaks
-    select_idx = random.sample(range(topN), randomN)
-    select_points = [top_peaks[idx] for idx in select_idx]  # ramdom choose randomN points in topN peaks
+
+    peaks = [location for location , _ in top_peaks[:topN]]
+    scores = [score for _ , score in top_peaks[:topN]]
+
+    select_points = random.choices( peaks , weights= scores , k = randomN) # TODO: 這邊似乎可用 peak score 當 random.choices 的 weighting ?
     select_hotels = find_hotel_by_points(select_points ,
                                          admin_area ,
                                          gmap_rating_threshold ,
                                          booking_rating_threshold)  # get the closest randomN hotels
 
+    # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
+
     t4 = t.time()
 
-    print(f"t1~t2 = {t2 - t1} , t2~t3 = {t3 - t2} , t3~t4 = {t4 - t3}")
+    '''food_objects = [ Resturant.objects.filter(place_sub_type = food ,admin_area = admin_area) for food in food_names ]
+    for select_hotel in select_hotels:
+
+        near_objects = filter_store_by_criteria(food_objects, center=hotel.return_location(), criteria=500) # TODO : 隨機取三家店家 ?'''
+
+
+    t5 = t.time()
+
+    print( f"t1~t2 = {t2 - t1} , t2~t3 = {t3 - t2} , t3~t4 = {t4 - t3} , t4~t5 = {t5 - t4}" )
 
     return select_hotels, select_points
 
@@ -123,13 +144,15 @@ if __name__ == '__main__':
     select_hotels, _ = find_best_hotels( d_rs, d_cn, d_h,
                                          admin_area = admin_area,
                                          silence_demand = False,
-                                         target_sigtseeing = None,
-                                         target_food = ['文章牛肉湯'],
+                                         target_sightseeing = None,
+                                         target_food = ['文章牛肉湯' , '幹咧' , '操咧'],
                                          topN = 50,
                                          randomN = 3,
                                          gmap_rating_threshold = 4.0,
                                          booking_rating_threshold = 8.0
                                          )
+    for hotel in select_hotels:
+        print(f'Select hotel : {hotel.name}')
 
     t3 = t.time()
 
@@ -137,7 +160,7 @@ if __name__ == '__main__':
 
         instant_objs = hotel.construct_instant_attr(queried_date='2021-02-10' , day_range=2 ,num_rooms=1 , num_people=2)
         for obj in instant_objs:
-            print(hotel.source_name , obj.queried_date , obj.room_recommend , obj.room_remainings , obj.price)
+            print(hotel.source_name , obj.queried_date , '推薦房型 :　', obj.room_recommend , obj.room_remainings , '價格(一晚) : ', obj.price)
 
     t4 = t.time()
 

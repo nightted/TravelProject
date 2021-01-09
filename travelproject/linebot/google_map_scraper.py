@@ -1,6 +1,7 @@
 import time as t
 import googlemaps
 from linebot.tools import find_english_char , get_digits , read_key ,set_env_attr
+from linebot.constants import *
 
 set_env_attr()  # set env attrs
 from linebot.models import *
@@ -12,15 +13,6 @@ from linebot.models import *
 1. Build grid search points
 2. from the search points , search for nearby stores ()
 '''
-
-# GLOBAL PARAMETER
-lng_1 = 102.516520*1000 # 1 longitude to meters
-lat_1 = 110.740000*1000 # 1 latitude to meters
-KEY_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/docs/API_KEY.txt'
-
-# The range of lat,lng of Taiwan
-Admin_area_range_lng = [120.03786531340755 , 122.00991123709818]
-Admin_area_range_lat = [21.871068186336803 , 25.30245194059663]
 
 
 def init_gmaps():
@@ -173,9 +165,35 @@ def geocode_subprocess(geocode_result):
     address = address + str(get_digits(geocode_result[0]['formatted_address'])[0]) + '號' if '號' not in address else address  # if not contain '號' ,get No. in formatted_address
     address = address[3:]  # remove 7XX postal code
 
-
     return address
 
+
+def address_checker(maps , place_inform , name = None ):
+
+    try:
+        # In this part , there's 2 kind of ERROR here
+        # 1. The address we got contains English words (We need chinese!!!)
+        # 2. Can't get the address directly from store_inform dictionary (KeyError)
+        # when encounters this 2 condition , use the geocode() to get address again.
+
+        address = place_inform['plus_code']['compound_code'].split(' ')[-1] + place_inform['vicinity']
+        if find_english_char(address):
+            # In this part , there's also 2 kind of WARNINGs here
+            # 1. The geocode returned isn't in locality
+            # 2. The geocode can't find any result (including truly not found or admin level fail)
+            # when encounters this 2 condition , use the original address we got.
+
+            print(f'[ENGLISH ERROR] {name} change to geocode !')
+            extract_address = extract_address_by_geocode(maps, name)
+            address = extract_address if not extract_address else address
+
+    # if key error when finding address , special handling
+    except KeyError:
+        print(f'[KEYERROR ERROR] {name} change to geocode !')
+        extract_address = extract_address_by_geocode(maps, name)
+        address = extract_address if extract_address != None else address
+
+    address = address.split('號')[0] + '號'  # remove following char after '號' and 70X at head , EX : 700中西區海安路256號一樓 => 中西區海安路256號
 
 # get store information with location , keyword , search radius
 def store_scraper(maps,
@@ -233,41 +251,18 @@ def store_scraper(maps,
                              radius=radius,
                              language='zh-TW')  # get stores list nearby
 
-    for store_inform in result['results']:
+    for place_inform in result['results']:
 
-        lat_lng = store_inform['geometry']['location']
+        lat_lng = place_inform['geometry']['location']
         lat, lng = lat_lng['lat'], lat_lng["lng"]
-        name = store_inform['name']
-        place_id = store_inform['place_id']
-        rating = store_inform.get('rating', None)
+        name = place_inform['name']
+        place_id = place_inform['place_id']
+        rating = place_inform.get('rating', None)
 
         # exclude stores not contains ratings
         if rating:
 
-            # TODO : Handling address representation in this part (這邊試著把它打包起來XD).
-            try:
-                # In this part , there's 2 kind of ERROR here
-                # 1. The address we got contains English words (We need chinese!!!)
-                # 2. Can't get the address directly from store_inform dictionary (KeyError)
-                # when encounters this 2 condition , use the geocode() to get address again.
-                address = store_inform['plus_code']['compound_code'].split(' ')[-1] + store_inform['vicinity']
-                if find_english_char(address):
-                    # In this part , there's also 2 kind of WARNINGs here
-                    # 1. The geocode returned isn't in locality
-                    # 2. The geocode can't find any result (including truly not found or admin level fail)
-                    # when encounters this 2 condition , use the original address we got.
-                    print(f'[ENGLISH ERROR] {name} change to geocode !')
-                    extract_address = extract_address_by_geocode(maps, name)
-                    address = extract_address if extract_address != None else address
-
-            # if key error when finding address , special handling
-            except KeyError:
-                print(f'[KEYERROR ERROR] {name} change to geocode !')
-                extract_address = extract_address_by_geocode(maps, name)
-                address = extract_address if extract_address != None else address
-
-            address = address.split('號')[
-                          0] + '號'  # remove following char after '號' and 70X at head , EX : 700中西區海安路256號一樓 => 中西區海安路256號
+            address = address_checker(maps , place_inform , name) # special handle for address
 
             information = {
                                'place_type': place_type ,
