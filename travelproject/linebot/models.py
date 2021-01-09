@@ -36,6 +36,8 @@ class Place(models.Model):
     def __eq__(self, other):
         return self.name == other.name and self.place_id == other.place_id # judge 2 places by comparing their name and place-id
 
+    def return_location(self):
+        return [self.lng , self.lat]
 
 
 class Hotel(Place):
@@ -60,8 +62,6 @@ class Hotel(Place):
                   other property including source and detail property set as None (NOT contain pics and comments attributes) 
     
     '''
-    def return_location(self):
-        return [self.lng , self.lat]
 
     @classmethod
     def create_obj_by_dict(cls, **store_dict):
@@ -223,16 +223,18 @@ class Hotel(Place):
                         exist_objs.append( Hotel_Instance.objects.get(
                                                                         query_date = datetime.date.today(),
                                                                         queried_date = day,
-                                                                        hotel_id = self.pk
+                                                                        hotel_id = self.pk,
+                                                                        num_rooms = num_rooms
                                                                      )
                                           )
 
-                        #print(f' Hotel {self.name} instant obj exist in the date : {day}!')
+                        print(f' Hotel {self.name} instant obj exist in the date : {day}!')
                     except:
-                        #print(f'Hotel {self.name} instant obj not exist in the date : {day}!')
-                        unfinished_queried_date.append(day)
+                        print(f'Hotel {self.name} instant obj not exist in the date : {day}!')
 
-                # if SQL not found instant data in some queried dates  , scrape it .
+                        unfinished_queried_date.append(day) # if similar data not exist , marks this date as unfinished-date
+
+                # if SQL not found similar data in some queried dates  , scrape it .
                 if unfinished_queried_date:
 
                     # get hotel information async to increase scrape speed , rtype : list of dicts : [{} , {} ... ]
@@ -277,7 +279,7 @@ class Hotel_Instance(models.Model):
     # the query information
     queried_date = models.DateField(default='') # the date of the hotel is queried
     instant_hrefs = models.TextField(null=True, blank=True, default=None)
-    room_recommend = models.CharField(max_length=20)
+    room_recommend = models.CharField(max_length=100)
     room_remainings = models.CharField(max_length=20)
     hot = models.CharField(max_length=100)
     price = models.IntegerField(null=True, blank=True ,default=None)
@@ -318,19 +320,28 @@ class Picture(models.Model):
 
 class Resturant(Place):
 
-    nearby_hotel = models.ManyToManyField(Hotel, related_name='nearby_hotel')
+    nearby_hotel = models.ManyToManyField(Hotel, related_name='nearby_resturant')
 
-    # TODO : construct many to many field from resturants to hotels
     @classmethod
     def create_obj_by_dict(cls, **store_dict):
         # basic attribute
         admin_area = store_dict.get('admin_area')
-        filter_store_by_criteria(Hotel.objects.filter(admin_area=admin_area))
 
         obj = cls(**store_dict)
         if obj not in cls.objects.all():
             obj.save()  # if not has same data in database , update it .
+
+            nearby_hotels = filter_store_by_criteria(Hotel.objects.filter(admin_area=admin_area) ,
+                                                     center = obj.return_location(),
+                                                     criteria = 500,
+                                                     scan_shape = 'circle') # filter nearby hotels
+
+            print(admin_area , obj.name , nearby_hotels)
+            for hotel in nearby_hotels:
+                obj.nearby_hotel.add(hotel) # add into foreign-key
+
         return obj
+
 
 
 class Station(Place):
