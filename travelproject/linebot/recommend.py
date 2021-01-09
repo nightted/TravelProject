@@ -106,6 +106,7 @@ def find_best_hotels(*density_objects,
     peaks = [location for location , _ in top_peaks[:topN]]
     scores = [score for _ , score in top_peaks[:topN]]
 
+
     select_points = random.choices( peaks , weights= scores , k = randomN) # TODO: 這邊似乎可用 peak score 當 random.choices 的 weighting ?
     select_hotels = find_hotel_by_points(select_points ,
                                          admin_area ,
