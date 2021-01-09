@@ -2,13 +2,13 @@ import requests
 from bs4 import BeautifulSoup
 from linebot.tools import get_digits, get_date_string
 from datetime import datetime
+from linebot.constants import *
 
 '''
 #  This module search and scrape the information of hotels 
 '''
 
 #GLOBAL VARIABLE
-BASE_BOOKING_URL = "https://www.booking.com/searchresults.zh-tw.html"
 HEADER_URL = "https://www.booking.com"
 
 # send request and return soup result
@@ -153,6 +153,12 @@ def check_alive_or_not(search_result,
         if not text and not tag:
             raise NameError("Need to assign tag if not finding text!!")
 
+        if len(search_result) > 1:
+            search_result = [result.text for result in search_result ]
+            search_result = ' + '.join(search_result)
+
+            return search_result
+
         return search_result.text if text else search_result[tag]
 
 
@@ -275,7 +281,13 @@ def extract_informations_from_soup( date , soup_content, soup_pic, instant_infor
 
         hotel_room_recommend = check_alive_or_not(soup_content.find('div', {'class': "room_link"}).find('strong'))
         if not hotel_room_recommend :
-            hotel_room_recommend = check_alive_or_not(soup_content.find('div', {'class': "room_link"}).find('span' , {'role' : 'link'}), msg_if_none='快上網站看看!').rstrip("\n").strip("\n")  # get the recommend room type  (instant information)
+
+            sub_soup_content = soup_content.find_all('div', {'class': "room_link"})
+            if sub_soup_content:
+                hotel_room_recommend = [sub_content.find('span' , {'role' : 'link'}).text.rstrip("\n").strip("\n") for sub_content in sub_soup_content]
+                hotel_room_recommend = ' + '.join(hotel_room_recommend)
+            else:
+                hotel_room_recommend = '快上網站看看!'
 
         hotel_room_remainings = check_alive_or_not(soup_content.find('span', {'class': "only_x_left"}), msg_if_none='房源還很充足!').rstrip("\n").strip("\n")  # get remaining rooms (instant information) 不是每個hotel都有此block !!!!!
         hotel_hot = check_alive_or_not(soup_content.find('div', {'class': 'rollover-s1 lastbooking'}),msg_if_none='快上網站訂房!').rstrip("\n").strip("\n")  # get the hot of hotels (instant information) 不是每個hotel都有此block !!!!!
