@@ -1,6 +1,6 @@
 import pickle
 import os
-from linebot.tools import set_env_attr
+from linebot.tools import *
 
 set_env_attr()  # set env attrs
 from linebot.models import *
@@ -41,14 +41,14 @@ def city_data_toSQL( city , base_path = DICT_PATH ):
 
     hash_types = {
         'resturant': Resturant,
-        'train': Station,
-        'hotel': Hotel,
+        #'train': Station,
+        #'hotel': Hotel,
         'beefsoup': Resturant,
         'eelnoodles': Resturant,
         'gruel': Resturant,
-        'nightmarket': Sightseeing,
+        #'nightmarket': Sightseeing,
         'con': Resturant,
-        'sightseeing': Sightseeing,
+        #'sightseeing': Sightseeing,
         'porkrice': Resturant
     }
 
@@ -88,5 +88,10 @@ def density_data_toSQL(city  , base_path = DICT_PATH ):
             print(f'Not contain this type {types} data!')
 
 if __name__  == '__main__' :
+
     density_data_toSQL(city='Tainan')
+
+
+
+
 
