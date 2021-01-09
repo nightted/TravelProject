@@ -77,7 +77,7 @@ WSGI_APPLICATION = 'travelproject.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',  #PostgreSQL
-        'NAME': 'Travel_Data',  #資料庫名稱
+        'NAME': 'travel_data',  #資料庫名稱
         'USER': 'postgres',  #資料庫帳號
         'PASSWORD': 'ted0920536607',  #資料庫密碼
         'HOST': 'localhost',  #Server(伺服器)位址

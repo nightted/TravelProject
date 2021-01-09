@@ -14,3 +14,4 @@ center_of_city = {
 }
 
 KEY_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/docs/API_KEY.txt'
+BASE_BOOKING_URL = "https://www.booking.com/searchresults.zh-tw.html"
