@@ -8,12 +8,15 @@ from linebot.tools import set_env_attr
 set_env_attr()  # set env attrs
 from linebot.models import *
 
+'''
+This functions are for hotel recommendations by store density and demand of silence or sightseeing positions
+'''
 
-
-def find_hotel_by_points(points,
-                         admin_area ,
-                         gmap_rating_threshold=4.0,
-                         booking_rating_threshold=8.0):
+def find_hotel_by_points_and_rating( point ,
+                                     admin_area ,
+                                     search_radius = 300 , # TODO : set as global const
+                                     gmap_rating_threshold = 4.0,
+                                     booking_rating_threshold = 8.0):
 
     def threshold_judge(hotel):
 
@@ -27,33 +30,28 @@ def find_hotel_by_points(points,
 
     hotel_objects_data = Hotel.objects.filter(admin_area = admin_area) # get all hotels from that administrative area
 
-    select_hotels = []
-    for point in points:
+    # TODO : 修正抓取的 hotel 數量演算法!
+    hotels = filter_store_by_criteria(hotel_objects_data,
+                                      center=point,
+                                      criteria=search_radius,
+                                      scan_shape='circle')
 
-        hotels, criteria = [], 0
-        while len(hotels) < 3 and criteria < 500:
-            criteria += 100
-            hotels = filter_store_by_criteria(hotel_objects_data,
-                                              center=point,
-                                              criteria=criteria,
-                                              scan_shape='circle')
-            hotels = list(filter(threshold_judge, hotels))  # filter booking_rating and star
-        select_hotels += hotels
+    hotels = list(filter(threshold_judge, hotels)) if  hotels else None # filter booking_rating and star
 
-    return select_hotels
+    return hotels
 
 
 # remember to load density data first!
 # (Done) : 這邊 **density input 形式可以在弄得簡潔一點 , 傳入 density "list" 就好 , 不需要 dict
-def find_best_hotels(*density_objects,
+def find_best_hotels(*density_objects ,
                      admin_area ,
-                     silence_demand=False,
-                     target_sightseeing=None,
-                     target_food=None,
-                     topN=50,
-                     randomN=3,
-                     gmap_rating_threshold=4.0,
-                     booking_rating_threshold=8.0,
+                     silence_demand=False ,
+                     target_sightseeing=None ,
+                     target_food=None ,
+                     num_to_find = 3 , # can't set too large . the while loop won't terminate XDD!
+                     topN = 50 ,
+                     gmap_rating_threshold = 4.0 ,
+                     booking_rating_threshold = 8.0 ,
                      ):
 
     if not density_objects:
@@ -102,32 +100,36 @@ def find_best_hotels(*density_objects,
 
     # get closest hotels around those peaks
     topN = topN if topN < len(top_peaks) else len(top_peaks)  # choose topN peaks
+    peaks = [location for location , _ in top_peaks[:topN]] # get peaks
+    scores = [score for _ , score in top_peaks[:topN]] # get scores of these peaks
 
-    peaks = [location for location , _ in top_peaks[:topN]]
-    scores = [score for _ , score in top_peaks[:topN]]
+    best_hotels , best_points , loop_times = [] , [] , 1
+    while len(best_hotels) < num_to_find:
 
+        select_point = random.choices( peaks , weights= scores )[0] #(Done) random select 1 point form topN points ; selection weights from point score calculate before
+        select_hotel = find_hotel_by_points_and_rating( select_point ,
+                                                         admin_area ,
+                                                         gmap_rating_threshold = gmap_rating_threshold ,
+                                                         booking_rating_threshold = booking_rating_threshold)  # get the closest randomN hotels
+        select_hotel = random.choices(select_hotel)[0] if select_hotel else None # random select 1 hotels
 
-    select_points = random.choices( peaks , weights= scores , k = randomN) # TODO: 這邊似乎可用 peak score 當 random.choices 的 weighting ?
-    select_hotels = find_hotel_by_points(select_points ,
-                                         admin_area ,
-                                         gmap_rating_threshold ,
-                                         booking_rating_threshold)  # get the closest randomN hotels
+        if select_hotel and select_hotel not in best_hotels:
+            best_hotels.append(select_hotel)
+            best_points.append(select_point)
+
+        if loop_times > 300:
+            print('Too many loop too run , take a rest!') # 防呆 XDD
+            break
+
+        loop_times += 1
 
     # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
 
     t4 = t.time()
 
-    '''food_objects = [ Resturant.objects.filter(place_sub_type = food ,admin_area = admin_area) for food in food_names ]
-    for select_hotel in select_hotels:
+    print( f"t1~t2 = {t2 - t1} , t2~t3 = {t3 - t2} , t3~t4 = {t4 - t3} ")
 
-        near_objects = filter_store_by_criteria(food_objects, center=hotel.return_location(), criteria=500) # TODO : 隨機取三家店家 ?'''
-
-
-    t5 = t.time()
-
-    print( f"t1~t2 = {t2 - t1} , t2~t3 = {t3 - t2} , t3~t4 = {t4 - t3} , t4~t5 = {t5 - t4}" )
-
-    return select_hotels, select_points
+    return best_hotels, best_points
 
 
 if __name__ == '__main__':
@@ -145,10 +147,10 @@ if __name__ == '__main__':
     select_hotels, _ = find_best_hotels( d_rs, d_cn, d_h,
                                          admin_area = admin_area,
                                          silence_demand = False,
-                                         target_sightseeing = None,
-                                         target_food = ['文章牛肉湯' , '幹咧' , '操咧'],
-                                         topN = 50,
-                                         randomN = 3,
+                                         target_sightseeing = ['安平古堡'],
+                                         target_food = None ,
+                                         topN = 50 ,
+                                         num_to_find = 100 ,
                                          gmap_rating_threshold = 4.0,
                                          booking_rating_threshold = 8.0
                                          )
