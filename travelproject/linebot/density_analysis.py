@@ -154,7 +154,6 @@ def maximum_filter_method(density_stack ,
                           density_name,
                           corrections ,
                           grid_to_latlng ,
-                          all_positions ,
                           basic_weights ,
                           food_weights = 5 ,
                           demand_threshold = 3
@@ -168,17 +167,12 @@ def maximum_filter_method(density_stack ,
     peaks = []
     for idx_r, row in enumerate(peaks_binary):
         for idx_c, col in enumerate(row):
-
             if col:  # if True , means it's peaks.
 
                 peak_score = density_stack_weighted[idx_r][idx_c]
                 if peak_score > demand_threshold: # the peak score must larger than some default threshold
 
-                    current_position = grid_to_latlng[idx_r][idx_c] # transform to lat,lng data
-                    positions_distance = list(map(lambda x: distance(current_position, x), all_positions))  # distance from current position to all_positions
-                    positions_distance_weighting = sum([1000.0 / distance for distance in positions_distance])  # calculate 1/r weights for all_positions
-
-                    peaks.append([list(current_position), peak_score * positions_distance_weighting])
+                    peaks.append([list(grid_to_latlng[idx_r][idx_c]), peak_score])
                     # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
 
     return peaks
@@ -188,7 +182,6 @@ def iterate_method(density_stack ,
                    density_name,
                    corrections ,
                    grid_to_latlng ,
-                   all_positions ,
                    basic_weights ,
                    food_weights = 5 ,
                    demand_threshold = 3
@@ -231,18 +224,8 @@ def iterate_method(density_stack ,
                 if len(list(filter(lambda x: x < score_center, score_surrounding))) == 4 and abs(score_center) > demand_threshold:
 
                     excludes = excludes + surrounding  # store the excludes points ( if the points is a peak , the surrounding points must not be peaks !)
-
-                    current_position = grid_to_latlng[i][j]
-                    positions_distance = list(map(lambda x: distance(current_position, x), all_positions))  # distance from current position to all_positions
-                    positions_distance_weighting = sum([1000.0 / distance for distance in positions_distance])  # calculate 1/r weights for all_positions
-
-                    peaks.append([list(grid_to_latlng[i][j]), score_center * positions_distance_weighting])
+                    peaks.append([list(grid_to_latlng[i][j]), score_center ])
                     # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
-                else:
-                    continue
-
-            else:
-                continue
 
     return peaks
 
@@ -251,7 +234,8 @@ def iterate_method(density_stack ,
 def search_peak(*density_objects,
                 admin_area ,
                 silence_demand=False,
-                target_sightseeing=None
+                target_sightseeing=None ,
+                topN = 50 ,
                 ):
 
     '''
@@ -261,10 +245,10 @@ def search_peak(*density_objects,
     :param admin_area: city to search (e.g. Tainan , Hsinchu ..)
     :param silence_demand: if True , choose place 鬧中取靜XD .
     :param target_sightseeing: target sightseeing clients want to go , type as : ['sightseeing1','sightseeing2']
+    :param topN : number of top score peaks to return
 
     :return: peaks with [ position_x(grid) ,position_y(grid) , score of peak]
     '''
-
     if not admin_area:
         raise NameError('Need to assign admin_area!!')
 
@@ -286,18 +270,20 @@ def search_peak(*density_objects,
     }
 
     # the weights of special food(You want to eat!) density , such : porkrice , eulnooles , beefsoup ..
-    food_weights = 5
+    food_weights = 6
 
     # corrected weight for silence demand (from get min -> max ,so add negative weight -1)
     corrections = [1] * len(density_objects) if not silence_demand else [-1] * len(basic_weights) + [1] * (len(density_objects) - len(basic_weights))
 
     # initialize data of train_station and sightseeing (for 1/r wighting use)
-    stations = Station.objects.filter(place_sub_type = 'station' , admin_area = admin_area)
+    stations = Station.objects.filter(place_sub_type = 'train' , admin_area = admin_area)
     station_position = [[station.lng, station.lat] for station in stations ]
-    sightseeing_positions = get_latlng_directly(target_sightseeing , admin_area) if target_sightseeing else []  #TODO : This will consume Google map api cost
+    sightseeing_positions = get_latlng_directly(target_sightseeing , admin_area) if target_sightseeing else []  #TODO (備忘): This will consume Google map api cost
     sightseeing_positions = [position for position in sightseeing_positions if distance(position , city_center) < tolerance_distance ] # filter too far sightseeing
 
-    all_positions = station_position + sightseeing_positions # combine
+    all_positions = station_position + sightseeing_positions # combine'
+    if not all_positions:
+        raise NameError('No position exist , will cause calculate error!')
 
     # initialize data of density
     density_name = [ density_obj.name for density_obj in density_objects ]  # all the name of densitys => [resturant , eelnoodles , ..]
@@ -308,15 +294,23 @@ def search_peak(*density_objects,
                                   density_name=density_name,
                                   corrections=corrections,
                                   grid_to_latlng=grid_to_latlng,
-                                  all_positions=all_positions,
                                   basic_weights=basic_weights,
                                   food_weights=food_weights,
                                   demand_threshold=demand_threshold)
 
-    # sort peaks by scores
-    peaks = sorted(peaks, reverse=True, key=lambda x: x[1])
-    #peaks = [peak_inform[0] for peak_inform in peaks]  # extract positions only
+    # sort peaks by scores and get topN peaks
+    topN = topN if topN < len(peaks) else len(peaks)  # choose topN peaks
+    peaks = sorted(peaks, reverse=True, key=lambda x: x[1])[:topN]
+    print("DEBUG : ", peaks)
 
+    # modify score topN peaks by r^-1 weight from special position (e.g. sightseeing or target food stores)
+    for idx, (lat_lng , score) in enumerate(peaks):
+
+        positions_distance = list(map(lambda x: distance(lat_lng, x), all_positions))  # distance from current position to all_positions
+        positions_distance_weighting = sum([1000.0 / distance  for distance in positions_distance])  # calculate 1/r weights for all_positions
+        peaks[idx][1] = score*positions_distance_weighting # update the score in peaks list
+
+    print("DEBUG : ", sorted(peaks, reverse=True, key=lambda x: x[1]))
     return peaks
 
 
