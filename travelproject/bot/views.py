@@ -9,16 +9,24 @@ from bot.constants import ACCESS_TOKEN_PATH , SECRET_PATH
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 
-from linebot import LineBotApi, WebhookParser
-from linebot.exceptions import InvalidSignatureError, LineBotApiError
+from linebot import (
+    LineBotApi, WebhookParser , WebhookHandler
+)
+from linebot.exceptions import (
+    InvalidSignatureError, LineBotApiError
+)
 from linebot.models import (
 
     MessageEvent, # normal message reply event
     PostbackEvent, # message reply event from PostbackTemplateAction
 
+    # Receive message
+    TextMessage,
+
     # Send messages
     TextSendMessage, # send text reply
     TemplateSendMessage, # send template reply
+    FlexSendMessage, # send flex-template reply
 
     # Template of message
     ButtonsTemplate, # reply template of button
@@ -30,15 +38,15 @@ from linebot.models import (
     PostbackTemplateAction, # detail postback action in template
     DatetimePickerTemplateAction # detail datetime action in template
 )
-
-
 # Line bot settings
+# TODO : set token and secret as config.ini and use ConfigParser to read
 LINE_CHANNEL_ACCESS_TOKEN = read_key(ACCESS_TOKEN_PATH)
 LINE_CHANNEL_SECRET = read_key(SECRET_PATH)
-print(LINE_CHANNEL_ACCESS_TOKEN , LINE_CHANNEL_SECRET)
 
-line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
-parser = WebhookParser(LINE_CHANNEL_SECRET)
+line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN) # set line bot api
+handler = WebhookHandler(LINE_CHANNEL_SECRET) # set handler
+
+
 
 @csrf_exempt
 def callback(request):
@@ -47,33 +55,62 @@ def callback(request):
 
         signature = request.META['HTTP_X_LINE_SIGNATURE']
         body = request.body.decode('utf-8')
-
         print('DEBUG' , "in !!!!!!!!!!!!")
 
         try:
-            events = parser.parse(body , signature)
+            handler.handle( body , signature)
         except InvalidSignatureError:
             return HttpResponseForbidden()
         except LineBotApiError:
             return HttpResponseBadRequest()
 
-
-
-        for event in events:
-
-            if isinstance( event , MessageEvent):
-                line_bot_api.reply_message(
-                    event.reply_token ,
-                    TextSendMessage( text = answer )
-                )
-
-        print("DEBUG : ", 'OUT!!!!!!!!!!!!!!!!')
-
-        return HttpResponse()
+        return 'OK'
 
     else:
         return HttpResponseBadRequest()
-            
+
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+
+    answer = get_recommend_hotels(
+        queried_date = '2021-02-14',
+        admin_area='Tainan',
+        target_sightseeing=['安平古堡'],
+        target_food=['牛肉湯'] ,
+        num_rooms=1 ,
+        num_people=2
+    )
+
+    #TODO : transfer the event to message_action.py
+
+    line_bot_api.reply_message(
+        event.reply_token ,
+        TextSendMessage( text = answer )
+    )
+
+    print("DEBUG : ", 'OUT!!!!!!!!!!!!!!!!')
+
+    return HttpResponse()
+
+
+'''DEBUG: {
+        "message": {"id": "13368634174120", "text": "test", "type": "text"},
+        "mode": "active",
+        "replyToken": "5f2b2092797a436481e34d5c6496225e",
+        "source": {"type": "user", "userId": "U9194cdbed4b7900ca0e7c81ba5371cb3"},
+        "timestamp": 1610441092730,
+        "type": "message"
+        }'''
+
+@handler.add(PostbackEvent)
+def handle_postback(event):
+
+    # TODO : transfer the event to postback_action.py
+    # carousal :　https://github.com/xiaosean/Line_chatbot_tutorial/blob/master/push_tutorial.ipynb
+    pass
+
+
 
 
 # base method to get recommend hotels
@@ -112,7 +149,7 @@ def get_recommend_hotels(queried_date ,
                 print(
                     f'The food nearby : {nearby_r.name} , the rating is {nearby_r.rating} , the distance is {distance(d_h, d_r)}')'''
 
-    print("DEBUG : ", rt_h)
+    #print("DEBUG : ", rt_h)
 
     for idx, hotel in enumerate(select_hotels):
 
@@ -122,8 +159,7 @@ def get_recommend_hotels(queried_date ,
 
         for obj in instant_objs:
             ins_h = []
-            ins_h += [str(obj.queried_date), '推薦房型 :', obj.room_recommend, obj.room_remainings, '價格(一晚) : ',
-                      str(obj.price)]
+            ins_h += [str(obj.queried_date), '推薦房型 :', obj.room_recommend, obj.room_remainings, '價格(一晚) : ', str(obj.price)]
             ins_h = ' '.join(ins_h)
             ins_hs.append(ins_h)
         ins_hs = '\n'.join(ins_hs)
