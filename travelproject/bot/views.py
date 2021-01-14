@@ -46,8 +46,15 @@ LINE_CHANNEL_SECRET = read_key(SECRET_PATH)
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN) # set line bot api
 handler = WebhookHandler(LINE_CHANNEL_SECRET) # set handler
 
-# Default messages:
+# Default params:
 greeting_message = '歡迎使用旅遊推薦 APP ~'
+next_type_hash = {
+    'location' : 'date' ,
+    'date' : 'rooms' ,
+    'rooms' : 'people' ,
+    'people' : 'yesORno' ,
+    'yesORno' : 'recommend'
+}
 
 
 @csrf_exempt
@@ -79,9 +86,12 @@ def callback(request):
 def handle_message(event):
 
     print("IN event handler!!!!")
+
+    # This block for LOCATION selection
     if event.message.text:
 
-        contents = button_template_generator(temp_type='travel_location')
+        contents = button_template_generator(temp_type='travel_location',
+                                             pre_postback_data=None)
 
         line_bot_api.reply_message(
             event.reply_token ,
@@ -95,39 +105,62 @@ def handle_message(event):
         )
 
 
+
+def postback_reply(event , pre_postback_data , type_header):
+
+
+    contents = button_template_generator(temp_type=f'travel_{next_type_hash[type_header]}',
+                                         pre_postback_data=pre_postback_data)
+
+    print('DEBUG : ', contents['footer']['contents'][0]['action'])
+
+    line_bot_api.reply_message(
+        event.reply_token,
+        FlexSendMessage(
+            alt_text='FlexTemplate',
+            contents=contents,
+        )
+    )
+
 @handler.add(PostbackEvent)
 def handle_postback(event):
 
     # TODO : transfer the event to postback_action.py
     # carousal :　https://github.com/xiaosean/Line_chatbot_tutorial/blob/master/push_tutorial.ipynb
 
-    if event.postback.data.split('&')[0] == "location":
+
+    type_header = event.postback.data.split('&')[0] # EX : 'location'
+    pre_postback_data = event.postback.data.split('&')[1]  # EX : '花蓮_'
+
+    # This block for DATE selection
+    if type_header == "location":
 
         # 這邊重點是我要把 , 前一層的 postback 參數 (ex : P&花蓮) ,
         # 傳入 button_template_generator 中 , 與 button 裡的 data combine.
+        postback_reply(event, pre_postback_data , type_header)
 
-        pre_postback_data = event.postback.data.split('&')[1] # EX : got '花蓮'
-        contents = button_template_generator(temp_type='travel_date' ,
-                                             pre_postback_data=pre_postback_data)
+    # This block for ROOMS selection
+    elif type_header == "date":
 
-        line_bot_api.reply_message(
-            event.reply_token,
-            FlexSendMessage(
-                alt_text='FlexTemplate',
-                contents=contents ,
-            )
-        )
+        postback_reply(event, pre_postback_data , type_header)
 
-    if event.postback.data.split('&')[0] == "date":
-        pass
+        # This block for PEOPLE selection
+    elif type_header == "rooms":
 
-    if event.postback.data.split('&')[0] == "people":
-        pass
+        postback_reply(event, pre_postback_data , type_header)
 
-    if event.postback.data.split('&')[0] == "yesOrno":
-        pass
+    # This block for YES_OR_NO selection
+    elif type_header == "people":
 
-    if event.postback.data.split('&')[0] == "recommend":
+        postback_reply(event, pre_postback_data , type_header)
+
+    # This block for RECOMMEND HOTELS selection
+    elif type_header == "yesOrno":
+
+        postback_reply(event, pre_postback_data , type_header)
+
+    # This block for handling hotel instant inform scraper and more .....
+    elif type_header == "recommend":
         pass
 
 
