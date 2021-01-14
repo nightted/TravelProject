@@ -52,8 +52,10 @@ next_type_hash = {
     'location' : 'date' ,
     'date' : 'rooms' ,
     'rooms' : 'people' ,
-    'people' : 'yesORno' ,
-    'yesORno' : 'recommend'
+    'people' : 'NeedRecommendOrNot' ,
+    'NeedRecommendOrNot' : 'silence' ,
+    'silence' : 'food' ,
+    'food' : 'sightseeing'
 }
 
 
@@ -90,7 +92,7 @@ def handle_message(event):
     # This block for LOCATION selection
     if event.message.text:
 
-        contents = button_template_generator(temp_type='travel_location',
+        contents = button_template_generator(temp_type='location',
                                              pre_postback_data=None)
 
         line_bot_api.reply_message(
@@ -106,14 +108,41 @@ def handle_message(event):
 
 
 
-def postback_reply(event , pre_postback_data , type_header):
+def postback_reply(event ,
+                   pre_postback_data ,
+                   type_header ,
+                   ):
+
+    # pre_postback_data like: 'Y_6_3_2020-02-12_花蓮_'
+    # special handle the CHECK POINT "NeedRecommendOrNot"
+    if type_header == 'NeedRecommendOrNot':
+        NeedOrNot = pre_postback_data.split('_')[0]
+    else:
+        NeedOrNot = None
+
+    if not NeedOrNot or NeedOrNot == 'Y':
+
+        # if not at CHECK POINT "NeedRecommendOrNot" or truly need recommend ;
+        # if truly need recommendation ,
+        # keep collecting more (silence , food , sightseeing) data for hotel recommendations.
+        next_type_header = next_type_hash.get(type_header, None)  # got next type template
+        contents = button_template_generator(temp_type=next_type_header,
+                                             pre_postback_data=pre_postback_data)
+
+    else:
+
+        # NO need recommend , collecting HOTEL NAME (data like: 'HotelName_Y_6_3_2020-02-12_花蓮_')
+        # and filter it from hotel objects  , queried_date
+        # than use construct_instant_attr method,
+        # to update room status days before and after queried_date.
+
+        # TODO 此處跳轉至 messagetext type ,　以輸入 hotel name , 接著以 Hotel.objects.filter
+        # TODO 找到相應 target hotel , 並調用 hotel.construct_instant_attr 以抓取 instant information ,
+        # TODO 最後以 carousel template 呈現
+        contents = carousel_template_generator(temp_type=None)
 
 
-    contents = button_template_generator(temp_type=f'travel_{next_type_hash[type_header]}',
-                                         pre_postback_data=pre_postback_data)
-
-    print('DEBUG : ', contents['footer']['contents'][0]['action'])
-
+    #print('DEBUG postback_reply: ', contents , 'DEBUG postback_reply: next_type_hash' ,type_header)
     line_bot_api.reply_message(
         event.reply_token,
         FlexSendMessage(
@@ -128,42 +157,50 @@ def handle_postback(event):
     # TODO : transfer the event to postback_action.py
     # carousal :　https://github.com/xiaosean/Line_chatbot_tutorial/blob/master/push_tutorial.ipynb
 
+    # Got a post event back , and parse the postback template type and data
+    type_header = event.postback.data.split('&')[0] # EX : 'location' (previous type of request template)
+    pre_postback_data = event.postback.data.split('&')[1]  # EX : '花蓮_' (previous type postback_data )
 
-    type_header = event.postback.data.split('&')[0] # EX : 'location'
-    pre_postback_data = event.postback.data.split('&')[1]  # EX : '花蓮_'
+    print('DEBUG postback_data:' ,event.postback.data)
 
     # This block for DATE selection
+
     if type_header == "location":
 
         # 這邊重點是我要把 , 前一層的 postback 參數 (ex : P&花蓮) ,
         # 傳入 button_template_generator 中 , 與 button 裡的 data combine.
         postback_reply(event, pre_postback_data , type_header)
 
-    # This block for ROOMS selection
-    elif type_header == "date":
+    if type_header == "date":
 
         postback_reply(event, pre_postback_data , type_header)
 
-        # This block for PEOPLE selection
+    # This block for ROOMS selection
     elif type_header == "rooms":
 
         postback_reply(event, pre_postback_data , type_header)
 
-    # This block for YES_OR_NO selection
+        # This block for PEOPLE selection
     elif type_header == "people":
 
         postback_reply(event, pre_postback_data , type_header)
 
+    # This block for YES_OR_NO selection
+    elif type_header == "NeedRecommendOrNot":
+
+        postback_reply(event, pre_postback_data , type_header)
+
     # This block for RECOMMEND HOTELS selection
-    elif type_header == "yesOrno":
+    elif type_header == "silence":
+
+        # TODO 此處就是繼續往下收集 data , 碰上 "recommend" 再進行 find_best_hotel 推薦;
+        # TODO 推薦出來的 hotel 一樣用 carousel 呈現
 
         postback_reply(event, pre_postback_data , type_header)
 
     # This block for handling hotel instant inform scraper and more .....
-    elif type_header == "recommend":
+    elif type_header == None:
         pass
-
-
 
 
     print("DEBUG : ", 'OUT!!!!!!!!!!!!!!!!')
