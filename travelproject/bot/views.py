@@ -5,6 +5,7 @@ from bot.models import *
 from bot.recommend import find_best_hotels
 from bot.tools import read_key
 from bot.constants import ACCESS_TOKEN_PATH , SECRET_PATH
+from bot.generate_template import button_template_generator , carousel_template_generator
 
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
@@ -42,10 +43,11 @@ from linebot.models import (
 # TODO : set token and secret as config.ini and use ConfigParser to read
 LINE_CHANNEL_ACCESS_TOKEN = read_key(ACCESS_TOKEN_PATH)
 LINE_CHANNEL_SECRET = read_key(SECRET_PATH)
-
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN) # set line bot api
 handler = WebhookHandler(LINE_CHANNEL_SECRET) # set handler
 
+# Default messages:
+greeting_message = '歡迎使用旅遊推薦 APP ~'
 
 
 @csrf_exempt
@@ -55,61 +57,93 @@ def callback(request):
 
         signature = request.META['HTTP_X_LINE_SIGNATURE']
         body = request.body.decode('utf-8')
-        print('DEBUG' , "in !!!!!!!!!!!!")
 
         try:
-            handler.handle( body , signature)
+            handler.handle( body , signature )
+
         except InvalidSignatureError:
+            print("DEBUG : InvalidSignatureError!!!")
             return HttpResponseForbidden()
         except LineBotApiError:
+            print("DEBUG : LineBotApiError!!!")
             return HttpResponseBadRequest()
 
-        return 'OK'
+        return HttpResponse()
 
     else:
+        print("DEBUG : HttpResponseBadRequest!!!")
         return HttpResponseBadRequest()
 
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
 
-    answer = get_recommend_hotels(
-        queried_date = '2021-02-14',
-        admin_area='Tainan',
-        target_sightseeing=['安平古堡'],
-        target_food=['牛肉湯'] ,
-        num_rooms=1 ,
-        num_people=2
-    )
+    print("IN event handler!!!!")
+    if event.message.text:
 
-    #TODO : transfer the event to message_action.py
+        contents = button_template_generator(temp_type='travel_location')
 
-    line_bot_api.reply_message(
-        event.reply_token ,
-        TextSendMessage( text = answer )
-    )
+        line_bot_api.reply_message(
+            event.reply_token ,
+            [
+                TextSendMessage(text=greeting_message),
+                FlexSendMessage(
+                    alt_text='FlexTemplate',
+                    contents=contents,
+                )
+            ]
+        )
 
-    print("DEBUG : ", 'OUT!!!!!!!!!!!!!!!!')
-
-    return HttpResponse()
-
-
-'''DEBUG: {
-        "message": {"id": "13368634174120", "text": "test", "type": "text"},
-        "mode": "active",
-        "replyToken": "5f2b2092797a436481e34d5c6496225e",
-        "source": {"type": "user", "userId": "U9194cdbed4b7900ca0e7c81ba5371cb3"},
-        "timestamp": 1610441092730,
-        "type": "message"
-        }'''
 
 @handler.add(PostbackEvent)
 def handle_postback(event):
 
     # TODO : transfer the event to postback_action.py
     # carousal :　https://github.com/xiaosean/Line_chatbot_tutorial/blob/master/push_tutorial.ipynb
-    pass
 
+    if event.postback.data.split('&')[0] == "location":
+
+        # 這邊重點是我要把 , 前一層的 postback 參數 (ex : P&花蓮) ,
+        # 傳入 button_template_generator 中 , 與 button 裡的 data combine.
+
+        pre_postback_data = event.postback.data.split('&')[1] # EX : got '花蓮'
+        contents = button_template_generator(temp_type='travel_date' ,
+                                             pre_postback_data=pre_postback_data)
+
+        line_bot_api.reply_message(
+            event.reply_token,
+            FlexSendMessage(
+                alt_text='FlexTemplate',
+                contents=contents ,
+            )
+        )
+
+    if event.postback.data.split('&')[0] == "date":
+        pass
+
+    if event.postback.data.split('&')[0] == "people":
+        pass
+
+    if event.postback.data.split('&')[0] == "yesOrno":
+        pass
+
+    if event.postback.data.split('&')[0] == "recommend":
+        pass
+
+
+
+
+    print("DEBUG : ", 'OUT!!!!!!!!!!!!!!!!')
+
+    '''answer = get_recommend_hotels(
+        queried_date='2021-02-14',
+        admin_area='Tainan',
+        target_sightseeing=['安平古堡'],
+        target_food=['牛肉湯'],
+        num_rooms=1,
+        num_people=2
+    )
+'''
 
 
 
