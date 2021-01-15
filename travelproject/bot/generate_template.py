@@ -31,7 +31,10 @@ def generate_rating_star(rating , font_size = None , font_color = None):
 
     return content_gold + content_gray + text
 
-def generate_list_button(generate_list , temp_type , pre_postback_data = None):
+def generate_list_button(generate_list ,
+                         temp_type ,
+                         #pre_postback_data = None
+                         ):
 
     '''
     # function : generate single button for button_template_generator function
@@ -43,10 +46,13 @@ def generate_list_button(generate_list , temp_type , pre_postback_data = None):
     :return:
     '''
 
-    if not pre_postback_data:
-        pre_postback_data = ''
+    '''if not pre_postback_data:
+        pre_postback_data = '''''
 
-    def helper(ele ,temp_type , pre_postback_data):
+    def helper(ele ,
+               temp_type ,
+               #pre_postback_data
+               ):
 
         content = {
                     "type": "button",
@@ -54,13 +60,13 @@ def generate_list_button(generate_list , temp_type , pre_postback_data = None):
                         "type": "postback",
                         "label": str(ele),
                         # combine the pre_postback_data with the current button data
-                        "data": f"{temp_type}&{ele}_{pre_postback_data}" # EX : location&花蓮_
+                        "data": f"{temp_type}&{ele}" # EX : location&花蓮_
                     }
                  }
 
         return content
 
-    content_number = [helper(ele , temp_type , pre_postback_data) for ele in generate_list]
+    content_number = [helper(ele , temp_type) for ele in generate_list]
     #print('DEBUG : ' , content_number)
 
     return content_number
@@ -68,8 +74,7 @@ def generate_list_button(generate_list , temp_type , pre_postback_data = None):
 
 def button_template_generator(
                               temp_type ,
-                              pre_postback_data = None,
-                              **room_status_query
+                              **kwargs
                               ):
 
     '''
@@ -77,12 +82,12 @@ def button_template_generator(
 
     :param temp_type: the type of template want to return
     :param pre_postback_data: the postback data in previous template (relative to current type : temp_type)
-    :param room_status_query: for "recommend" step usage , store the hotel information.
+    :param kwargs: for "recommend" step usage , store the hotel information.
 
     :return: template with buttons
     '''
 
-    if temp_type == 'location':
+    if temp_type == 'admin_area':
 
         button = {
                     "type": "bubble",
@@ -110,14 +115,15 @@ def button_template_generator(
                     "footer": {
                         "type": "box",
                         "layout": "vertical",
-                        "contents": generate_list_button(generate_list=['台南' , '宜蘭' , '花蓮'] ,
-                                                         temp_type=temp_type ),
+                        "contents": generate_list_button(generate_list=['Tainan' , 'Yilan' , 'Hualien'] ,
+                                                         temp_type=temp_type
+                                                         ),
                         "flex": 0,
                         "spacing": "xs"
                     }
         }
 
-    elif temp_type == 'date':
+    elif temp_type == 'queried_date':
 
         button = {
                     "type": "bubble",
@@ -153,7 +159,7 @@ def button_template_generator(
                                     "label": "選個日期吧!",
                                     "mode": "date",
                                     "initial": "2021-02-01",
-                                    "data": f"action=sell&itemid=2&mode=date_{pre_postback_data}",
+                                    "data": f"action=sell&itemid=2&mode=date", # TODO date 怎抓!!!
                                     "max": "2022-02-01",
                                     "min": "2021-01-01"
                                 }
@@ -164,7 +170,7 @@ def button_template_generator(
                     }
         }
 
-    elif temp_type == 'rooms':
+    elif temp_type == 'num_rooms':
 
         button = {
             "type": "bubble",
@@ -193,14 +199,14 @@ def button_template_generator(
                 "type": "box",
                 "layout": "vertical",
                 "contents": generate_list_button(generate_list=list(range(1,6)) , # default # options = 5
-                                                 temp_type=temp_type ,
-                                                 pre_postback_data=pre_postback_data),
+                                                 temp_type=temp_type
+                                                 ),
                 "flex": 0,
                 "spacing": "xs"
             }
         }
 
-    elif temp_type == 'people':
+    elif temp_type == 'num_people':
 
         button = {
             "type": "bubble",
@@ -229,8 +235,8 @@ def button_template_generator(
                 "type": "box",
                 "layout": "vertical",
                 "contents": generate_list_button(generate_list=list(range(1, 10)) , # default # options = 10
-                                                 temp_type=temp_type,
-                                                 pre_postback_data=pre_postback_data),
+                                                 temp_type=temp_type
+                                                 ),
                 "flex": 0,
                 "spacing": "xs"
             }
@@ -265,11 +271,10 @@ def button_template_generator(
                 "type": "box",
                 "layout": "horizontal",
                 "contents": generate_list_button(generate_list=['Y','N'] , # default options : Yes or No
-                                                 temp_type=temp_type ,
-                                                 pre_postback_data=pre_postback_data)
+                                                 temp_type=temp_type
+                                                 )
             }
         }
-
 
     elif temp_type == 'silence':
 
@@ -300,15 +305,64 @@ def button_template_generator(
                 "type": "box",
                 "layout": "horizontal",
                 "contents": generate_list_button(generate_list=['Hot','Silence'] , # default options : Yes or No
-                                                 temp_type=temp_type ,
-                                                 pre_postback_data=pre_postback_data)
+                                                 temp_type=temp_type
+                                                 )
             }
         }
 
+    elif temp_type == 'food':
+
+        if 'food' in kwargs:
+            food = kwargs.get('food', [] )
+
+        if not food:
+            raise ValueError('No foods in list!')
+
+        button = {
+            "type": "bubble",
+            "hero": {
+                "type": "image",
+                "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
+                "size": "full",
+                "aspectRatio": "320:213",
+                "aspectMode": "cover"
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": "喜歡鬧區還是安靜?",
+                        "size": "lg",
+                        "style": "italic",
+                        "weight": "bold",
+                        "decoration": "none"
+                    }
+                ]
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": generate_list_button(generate_list=food,  # default options : Yes or No
+                                                 temp_type=temp_type
+                                                 )
+            }
+        }
+
+    elif temp_type == 'sightseeing':
+        pass
 
     elif temp_type == 'recommend':
 
         # Those property all got from selected hotels attributes
+        if not kwargs:
+            raise ValueError('No hotel atrributes assigned!')
+
+        name = kwargs.get('name',None)
+        source_rating = kwargs.get('source_rating',None)
+        star = kwargs.get('star',None)
+        pic_link = kwargs.get('pic_link',None)
 
 
         button = {
@@ -318,7 +372,7 @@ def button_template_generator(
 
               "hero": {
                             "type": "image",
-                            "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png" ,
+                            "url": pic_link ,
                             "size": "full",
                             "aspectMode": "cover",
                             "aspectRatio": "320:213"
@@ -330,7 +384,14 @@ def button_template_generator(
                             "contents": [
                               {
                                 "type": "text",
-                                "text": place_name,
+                                "text": name,
+                                "weight": "bold",
+                                "size": "sm",
+                                "wrap": True
+                              },
+                              {
+                                "type": "text",
+                                "text": source_rating + '星級',
                                 "weight": "bold",
                                 "size": "sm",
                                 "wrap": True
@@ -338,7 +399,7 @@ def button_template_generator(
                               {
                                 "type": "box",
                                 "layout": "baseline",
-                                "contents": generate_rating_star(rating)
+                                "contents": generate_rating_star(star)
                               },
                             ],
                             "spacing": "sm",
@@ -359,7 +420,7 @@ def button_template_generator(
                                         "label": "快看看你選的日期房況!",
                                         # 這邊 postback data 是要找出 filtered Hotel instance ,
                                         # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
-                                        "data": place_name + "&" + admin_area + "&" + queried_date + "&" + num_people + "&" + num_rooms
+                                        "data": None,
                                     }
                                 },
                                 {
@@ -382,32 +443,114 @@ def button_template_generator(
 
         }
 
+    elif temp_type == 'instance':
+
+        # Those property all got from selected hotels attributes
+        if not kwargs:
+            raise ValueError('No hotel atrributes assigned!')
+
+        price = kwargs.get('price',None)
+        room_recommend = kwargs.get('room_recommend',None)
+        room_remaining = kwargs.get('room_remaining',None)
+        queried_date = kwargs.get('queried_date',None)
+        instant_hrefs = kwargs.get('instant_hrefs',None)
+
+        button = {
+            "type": "bubble",
+
+            "size": "micro",
+
+            "hero": {
+                "type": "image",
+                "url": img_url,
+                "size": "full",
+                "aspectMode": "cover",
+                "aspectRatio": "320:213"
+            },
+
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": place_name,
+                        "weight": "bold",
+                        "size": "sm",
+                        "wrap": True
+                    },
+                    {
+                        "type": "box",
+                        "layout": "baseline",
+                        "contents": generate_rating_star(rating)
+                    },
+                ],
+                "spacing": "sm",
+                "paddingAll": "13px"
+            },
+
+            "footer": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "postback",
+                            "label": "快看看你選的日期房況!",
+                            # 這邊 postback data 是要找出 filtered Hotel instance ,
+                            # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
+                            "data": None,
+                        }
+                    },
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "postback",
+                            "label": "附近有什麼好吃的咧?",
+                            "data": None
+                        }
+                    },
+                    {
+                        "type": "spacer",
+                        "size": "sm"
+                    }
+                ],
+                "flex": 0
+            }
+
+        }
 
     return button
 
 
 def carousel_template_generator( temp_type ,
-                                 **kwargs
+                                 dict_list,
                                 ):
+    '''
+    這邊傳入 hotel objects or hotel_instance objects
+    並轉換成 dicts ,
 
-    '''
-    kwargs = {
-        place_name : [ place1 , place2 , ...] ,
-        img_url : [ url1 , url2 , ...] ,
+    dict_list are objects' dict!
+    e.g. : [
+        { name : XX , room_source : OO} ,
+        { name : AA , room_source : BB} ,
         ...
-    }
+    ]
     '''
-    for name , items in kwargs.items():
-        # TODO 這邊要修正 data 帶入的方式
 
 
 
     carousel_contents = {
         "type": "carousel",
-          "contents": [button_template_generator(temp_type=temp_type ,
-                                                 **kwargs ) for place_name , img_url , rating in zip(place_names,
-                                                                                                         img_urls,
-                                                                                                         ratings)]
+        "contents": [button_template_generator(temp_type=temp_type ,
+                                               **kwargs )
+                     for kwargs in dict_list]
 
 
 }
