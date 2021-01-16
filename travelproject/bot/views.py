@@ -130,7 +130,7 @@ def handle_message(event):
     # TODO :設置一個 accept_list , 假設 type_header 不在裡面 , 可先導回 return_postback 並 "倒退 type header" , 以重傳一次 postback button ?
     # TODO :但目前問題是 BREAK POINT 那邊進行 "倒退 type header" 會有些困難在 XDD
 
-    # Got a message event back , and parse current type and data
+    # Got a message event back , and parse current type and data ; if 'NeedRecommendOrNot' , special handle
     if client_obj.NeedRecommendOrNot == "N" and client_obj.silence == None:
         type_header = 'Hotel_name_input'
     else:
@@ -147,6 +147,7 @@ def handle_message(event):
             setattr(client_obj , type_header , msg )
             client_obj.save()
 
+        # if type == entering_message or sightseeing or hotel name input , transfer to return postback
         if type_header in ['entering_message','sightseeing','Hotel_name_input']:
             return_postback(event ,
                             client_obj = client_obj ,
@@ -156,8 +157,9 @@ def handle_message(event):
                            client_obj = client_obj ,
                            type_header = type_header  )
     else:
-
-        type_header =
+        # 倒退 type_header 一格, 重send data
+        type_idx = priority.index(type_header)
+        type_header = priority[type_idx-1] # return to previous type
         return_postback(event,
                         client_obj=client_obj,
                         type_header=type_header)
@@ -192,7 +194,7 @@ def return_message(event,
     if next_type_header == 'Hotel_name_input':
         contents = '請輸入你想住的飯店~'
 
-    if next_type_header == 'sightseeing':
+    elif next_type_header == 'sightseeing':
         contents = '請輸入你想去的景點~'
 
     if not contents:
@@ -215,7 +217,16 @@ def handle_postback(event):
 
     # carousal :　https://github.com/xiaosean/Line_chatbot_tutorial/blob/master/push_tutorial.ipynb
 
-    postback_accept_type = []
+    postback_accept_type = [
+                            'admin_area' ,
+                            'queried_date' ,
+                            'num_rooms' ,
+                            'num_people' ,
+                            'NeedRecommendOrNot' ,
+                            'silence' ,
+                            'food' ,
+                            'recommend' ,
+                            'instant']
 
     # got client object
     client_obj = Line_client.objects.get(user_id=event.source.user_id,
@@ -226,25 +237,28 @@ def handle_postback(event):
     pre_postback_data = event.postback.data.split('&')[1]  # EX : '[安平古堡]_[牛肉湯]_Hot_Y_6_3_2020-02-12_花蓮_'
 
     # saving attr to database
-    if type_header in client_obj.__dict__:
-        setattr(client_obj , type_header , pre_postback_data)
-        client_obj.save()
+    if type_header in postback_accept_type:
 
-    if type_header == 'NeedRecommendOrNot':
-        NeedOrNot = pre_postback_data
-        if NeedOrNot == "N":
+        if type_header in client_obj.__dict__:
+            setattr(client_obj , type_header , pre_postback_data)
+            client_obj.save()
+
+        # if NeedRecommendOrNot == "N" or food type , transfer to return message
+        if (type_header == 'NeedRecommendOrNot' and pre_postback_data == "N") or  type_header == "food" :
             return_message(event,
                            client_obj=client_obj,
                            type_header=type_header)
 
-    # This block for special handle for "food" type template
-    if type_header == "food":
-        return_message(event,
-                       client_obj = client_obj,
-                       type_header = type_header)
+        else:
+            return_postback(event, client_obj, type_header) # Do reply function
 
     else:
-        return_postback(event, client_obj, type_header) # Do reply function
+        # 倒退 type_header 一格, 重send data
+        type_idx = priority.index(type_header)
+        type_header = priority[type_idx - 1] # return to previous type
+        return_message(event,
+                       client_obj=client_obj,
+                       type_header=type_header)
 
     print("DEBUG : ", 'OUT!!!!!!!!!!!!!!!!')
 
