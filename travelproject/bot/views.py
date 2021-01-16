@@ -23,7 +23,8 @@ from linebot.models import (
     PostbackEvent, # message reply event from PostbackTemplateAction
 
     # Receive message
-    TextMessage,
+    TextMessage ,
+    StickerMessage ,
 
     # Send messages
     TextSendMessage, # send text reply
@@ -40,6 +41,7 @@ from linebot.models import (
     PostbackTemplateAction, # detail postback action in template
     DatetimePickerTemplateAction # detail datetime action in template
 )
+
 # Line bot settings
 # TODO : set token and secret as config.ini and use ConfigParser to read
 LINE_CHANNEL_ACCESS_TOKEN = read_key(ACCESS_TOKEN_PATH)
@@ -47,8 +49,10 @@ LINE_CHANNEL_SECRET = read_key(SECRET_PATH)
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN) # set line bot api
 handler = WebhookHandler(LINE_CHANNEL_SECRET) # set handler
 
-# Default params:
+# Default greeting message:
 greeting_message = '歡迎使用旅遊推薦 APP ~' # greeting words
+
+# Priority of stage process:
 priority = ['entering_message' ,
             'admin_area' ,
             'queried_date' ,
@@ -62,7 +66,7 @@ priority = ['entering_message' ,
             'instant'
             ] # indicate the priority of process ; and also assigns the template type in postback message
 next_type_hash = {pre : after for pre , after  in zip(priority[:len(priority)-1] , priority[1:len(priority)])}
-
+next_type_hash.update({'Hotel_name_input' : 'instant'}) # update for BREAK POINT 'NeedRecommendOrNot' fork.
 
 @csrf_exempt
 def callback(request):
@@ -103,10 +107,15 @@ def find_type_header(client_obj):
     else:
         return None
 
-@handler.add(MessageEvent, message=TextMessage)
+
+@handler.add(MessageEvent, message=[TextMessage , StickerMessage])
 def handle_message(event):
 
-    msg = event.message.text # got message first
+    message_accept_type = ['entering_message' ,
+                           'sightseeing' ,
+                           'Hotel_name_input']
+
+    # got client object
     # In the beginning of entering apps ,
     # try to get existing Line_client ; if not exist , initial Line_client object
     try:
@@ -116,38 +125,78 @@ def handle_message(event):
         client_obj = Line_client.create_obj_by_dict(user_id = event.source.user_id,
                                                     query_date=datetime.date.today())
 
-    # TODO: BUG HERE , 要是不小心在途中輸入文字內容 , 就會抓到先前已存在的 Line_client object , 進而造成此處 type_header 錯位 !!
-    type_header = find_type_header(client_obj) # find the empty client attributes , it's actually the type_header now!
 
+    # TODO :假設目前是要接收 postback button 回傳 ,但 client 不小心弄成 message 回傳 , 要如何導回 postback handle?
+    # TODO :設置一個 accept_list , 假設 type_header 不在裡面 , 可先導回 return_postback 並 "倒退 type header" , 以重傳一次 postback button ?
+    # TODO :但目前問題是 BREAK POINT 那邊進行 "倒退 type header" 會有些困難在 XDD
 
-    print('DEBUG : ' , type_header)
-    setattr(client_obj , type_header , msg )
-    client_obj.save()
+    # Got a message event back , and parse current type and data
+    if client_obj.NeedRecommendOrNot == "N" and client_obj.silence == None:
+        type_header = 'Hotel_name_input'
+    else:
+        type_header = find_type_header(client_obj) # find the empty client attributes , it's actually the type_header now!
 
-    if type_header == 'entering_message':
-        return_postback(event ,
-                        client_obj = client_obj ,
-                        type_header = type_header)
+    # got messages
+    msg = event.message.text #TODO: instance 這邊要怎傳給 postback ?
 
-    return_message(event ,
-                   client_obj = client_obj ,
-                   type_header = type_header  )
+    # 這邊檢查避免 type 錯誤的狀況 (明明給 postback button , 卻輸入文字 message )
+    if type_header in message_accept_type:
 
-    # STORAGE WORK IN THIS BLOCK !!!
+        # saving data to database if data_key exist in object attr
+        if type_header in client_obj.__dict__:
+            setattr(client_obj , type_header , msg )
+            client_obj.save()
 
+        if type_header in ['entering_message','sightseeing','Hotel_name_input']:
+            return_postback(event ,
+                            client_obj = client_obj ,
+                            type_header = type_header)
+        else:
+            return_message(event ,
+                           client_obj = client_obj ,
+                           type_header = type_header  )
+    else:
+
+        type_header =
+        return_postback(event,
+                        client_obj=client_obj,
+                        type_header=type_header)
 
 def return_message(event,
-                  client_obj,
-                  type_header
-                  ):
+                   client_obj,
+                   type_header
+                   ):
 
-    # transform from type "food" -> type "sightseeing" , need to transfer to message instead of postback type return
-    next_type_header = next_type_hash.get(type_header)
+
+    '''
+      # NO need recommend , collecting HOTEL NAME (data like: 'HotelName_Y_6_3_2020-02-12_花蓮_')
+      # and filter it from hotel objects  , queried_date
+      # than use construct_instant_attr method,
+      # to update room status days before and after queried_date.
+
+      pass # message 輸入 hotel 並 scrape hotel instance information , 並弄成 dicts 丟進 dict_list 裡
+      contents = carousel_template_generator(temp_type='instance',
+                                             dict_list = None )
+    '''
+    contents = None
+    # special handle for BREAK POINT "NeedRecommendOrNot"
+    if type_header == 'NeedRecommendOrNot' and client_obj.getattr(type_header) == 'N':
+        next_type_header = 'Hotel_name_input'
+    else:
+        next_type_header = next_type_hash.get(type_header)
+
+
+    if not next_type_header:
+        raise ValueError('No next type exist!!!')
+
+    if next_type_header == 'Hotel_name_input':
+        contents = '請輸入你想住的飯店~'
+
     if next_type_header == 'sightseeing':
         contents = '請輸入你想去的景點~'
 
-    else:
-        raise ValueError("No content assigned!!")
+    if not contents:
+        raise ValueError(" No content assign !! ")
 
     line_bot_api.reply_message(
         event.reply_token,
@@ -161,121 +210,94 @@ def return_message(event,
     '''
 
 
-
 @handler.add(PostbackEvent)
 def handle_postback(event):
 
     # carousal :　https://github.com/xiaosean/Line_chatbot_tutorial/blob/master/push_tutorial.ipynb
 
-    # Got a post event back , and parse the postback template type and data
-    type_header = event.postback.data.split('&')[0] # EX : 'location' (previous type of request template)
-    pre_postback_data = event.postback.data.split('&')[1]  # EX : '花蓮_' (previous type postback_data )
+    postback_accept_type = []
 
     # got client object
     client_obj = Line_client.objects.get(user_id=event.source.user_id,
                                          query_date=datetime.date.today())
-    # pre_postback_data like: '[安平古堡]_[牛肉湯]_Hot_Y_6_3_2020-02-12_花蓮_'
 
-    # This block for LOCATION update
-    if type_header == "admin_area":
+    # Got a post event back , and parse the current type and data
+    type_header = event.postback.data.split('&')[0]  # EX : 'admin' (type of request template)
+    pre_postback_data = event.postback.data.split('&')[1]  # EX : '[安平古堡]_[牛肉湯]_Hot_Y_6_3_2020-02-12_花蓮_'
 
-        print("DEBUG : IN admin_area!!!!")
+    # saving attr to database
+    if type_header in client_obj.__dict__:
         setattr(client_obj , type_header , pre_postback_data)
+        client_obj.save()
 
-    # This block for DATE update
-    elif type_header == "queried_date":
-        setattr(client_obj , type_header , pre_postback_data)
+    if type_header == 'NeedRecommendOrNot':
+        NeedOrNot = pre_postback_data
+        if NeedOrNot == "N":
+            return_message(event,
+                           client_obj=client_obj,
+                           type_header=type_header)
 
-    # This block for ROOMS update
-    elif type_header == "num_rooms":
-        setattr(client_obj , type_header , pre_postback_data)
-
-    # This block for PEOPLE update
-    elif type_header == "num_people":
-        setattr(client_obj , type_header , pre_postback_data)
-
-    # This block for NeedRecommendOrNot update
-    elif type_header == "NeedRecommendOrNot":
-        setattr(client_obj , type_header , pre_postback_data)
-
-    # This block for SILENCE update
-    elif type_header == "silence":
-        setattr(client_obj , type_header , pre_postback_data)
-
-    # This block for FOOD update
-    elif type_header == "food":
-        setattr(client_obj , type_header , pre_postback_data)
-
+    # This block for special handle for "food" type template
+    if type_header == "food":
         return_message(event,
                        client_obj = client_obj,
-                       type_header = type_header)  # TODO (MARK)
+                       type_header = type_header)
 
-    elif type_header == None:
-        raise ValueError('No template type found!')
-
-    client_obj.save()
-
-    return_postback(event, client_obj, type_header) # Do reply function
+    else:
+        return_postback(event, client_obj, type_header) # Do reply function
 
     print("DEBUG : ", 'OUT!!!!!!!!!!!!!!!!')
 
 
 def return_postback(event ,
-                   client_obj, # 可直接在 reply function 中取用 client 即時 data !
-                   type_header ,
-                   ):
+                    client_obj, # 可直接在 reply function 中取用 client 即時 data !
+                    type_header ,
+                    ):
 
     # pre_postback_data like: 'Y_6_3_2020-02-12_花蓮_'
     # special handle the CHECK POINT "NeedRecommendOrNot"
-    if type_header == 'NeedRecommendOrNot':
-        NeedOrNot = client_obj.NeedRecommendOrNot
-    else:
-        NeedOrNot = None
 
+    contents = None
     next_type_header = next_type_hash.get(type_header, None)  # got next type template
+
     if not next_type_header:
         raise ValueError('No next type exist!!!')
 
-    if (not NeedOrNot or NeedOrNot == 'Y') and next_type_header != 'recommend':
 
-        print("DEBUG : IN postback_reply!!!!")
-        # if not at CHECK POINT "NeedRecommendOrNot" or truly need recommend and NOT at last 'recommend' layer;
-        # if truly need recommendation ,
-        # keep collecting more (silence , food , sightseeing) data for hotel recommendations.
+    # if next stage "recommend" , use client data to call find_best_hotel() to find best 5 hotels
+    if next_type_header == 'recommend':
 
+        # next_type_header of "sightseeing" 會從這傳入
+        dict_list = get_recommend_hotels(client_obj)# define scrape recommend hotels function!!!
+        contents = carousel_template_generator(temp_type=next_type_header,
+                                               dict_list=dict_list)
+
+    # if next stage "instant" , use hotel name to find hotel object ;
+    # then use date ,rooms and people as input to object.construct_instant_attr
+    elif next_type_header == 'instant':
+
+        # next_type_header of "recommend" or "hotel_name_input" 會從這傳入!!
+        dict_list = get_hotel_instance(client_obj) # define scrape hotel instant function!!!
+        contents = carousel_template_generator(temp_type=next_type_header,
+                                               dict_list=dict_list)
+
+    # if not at stage "recommend" or "instant", keep collecting more (silence , food , sightseeing) data for hotel recommendations.
+    else:
         if next_type_header == 'food':
+
+            # special handle for food template about food display.
             contents = button_template_generator(temp_type=next_type_header,
-                                                 food = center_of_city[client_obj.admin_area]['popular_food']
+                                                 food=center_of_city[client_obj.admin_area]['popular_food']
                                                  )
         else:
             contents = button_template_generator(temp_type=next_type_header)
 
 
-
-    # 接下來這邊有兩種情況 type 會用到 carousel ;
-    # 1. NeedRecommendOrNot : 直接輸入 hotel 名稱 , 找 5 instance 並用 carousel 回傳
-    # 1. recommend : 直接輸入 hotel 名稱 , 找 5 instance 並用 carousel
-    elif NeedOrNot == 'N':
-        # NO need recommend , collecting HOTEL NAME (data like: 'HotelName_Y_6_3_2020-02-12_花蓮_')
-        # and filter it from hotel objects  , queried_date
-        # than use construct_instant_attr method,
-        # to update room status days before and after queried_date.
-
-        pass # message 輸入 hotel 並 scrape hotel instance information , 並弄成 dicts 丟進 dict_list 裡
-        contents = carousel_template_generator(temp_type='instance',
-                                               dict_list = None )
-
-    elif next_type_header == 'recommend':
-
-        pass # 用 client obj data 來 find 推薦 hotels , 並弄成 dicts 丟進 dict_list 裡
-        contents = carousel_template_generator(temp_type=next_type_header,
-                                               dict_list=None)
-
-    else:
-        raise ValueError(" No content assign !!")
+    if not contents:
+        raise ValueError(" No content assign !! ")
 
     #print('DEBUG postback_reply: ', contents , 'DEBUG postback_reply: next_type_hash' ,type_header)
-    print("DEBUG : IN postback_reply 222!!!!")
+
     line_bot_api.reply_message(
         event.reply_token,
         FlexSendMessage(
@@ -285,13 +307,11 @@ def return_postback(event ,
     )
 
 # base method to get recommend hotels
-def get_recommend_hotels(queried_date ,
-                         admin_area ,
-                         target_sightseeing ,
-                         target_food ,
-                         num_rooms ,
-                         num_people
-                         ):
+def get_recommend_hotels(client_obj):
+
+    admin_area = client_obj.admin_area
+    target_sightseeing = client_obj.target_sightseeing
+    target_food = client_obj.target_food
 
     d_rs = Array_2d.objects.get(admin_area=admin_area, name='resturant')
     d_cn = Array_2d.objects.get(admin_area=admin_area, name='con')
@@ -308,17 +328,19 @@ def get_recommend_hotels(queried_date ,
                                         booking_rating_threshold=8.0
                                         )
 
-    rt_h = []
-    for hotel in select_hotels:
-        print(f'Select hotel : {hotel.name} ')
-        rt_h.append(hotel.name)
+    dict_list = [hotel.__dict__ for hotel in select_hotels ]
 
-        '''for nearby_r in hotel.nearby_resturant.all():
-            if nearby_r.place_sub_type != 'con' and nearby_r.place_sub_type == 'porkrice' and nearby_r.rating >= 4.0:
-                d_h = hotel.return_location()
-                d_r = nearby_r.return_location()
-                print(
-                    f'The food nearby : {nearby_r.name} , the rating is {nearby_r.rating} , the distance is {distance(d_h, d_r)}')'''
+    return dict_list
+
+
+def get_hotel_instance(client_obj):
+
+    for nearby_r in hotel.nearby_resturant.all():
+        if nearby_r.place_sub_type != 'con' and nearby_r.place_sub_type == 'porkrice' and nearby_r.rating >= 4.0:
+            d_h = hotel.return_location()
+            d_r = nearby_r.return_location()
+            print(
+                f'The food nearby : {nearby_r.name} , the rating is {nearby_r.rating} , the distance is {distance(d_h, d_r)}')
 
     #print("DEBUG : ", rt_h)
 

@@ -350,9 +350,6 @@ def button_template_generator(
             }
         }
 
-    elif temp_type == 'sightseeing':
-        pass
-
     elif temp_type == 'recommend':
 
         # Those property all got from selected hotels attributes
