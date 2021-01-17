@@ -186,9 +186,9 @@ class Hotel(Place):
 
     def construct_instant_attr(self,
                                queried_date,
-                               day_range=3 ,
                                num_people=2 ,
-                               num_rooms=1
+                               num_rooms=1 ,
+                               day_range = 3,
                                ):
         """
         # function : construct instant information of hotels
@@ -250,7 +250,8 @@ class Hotel(Place):
                     un_exist_objs = []
                     for instant_dict in instant_inform:
 
-                        instant_dict.update({'num_rooms' : num_rooms})
+                        instant_dict.update({'num_rooms' : num_rooms ,
+                                             'num_people' : num_people }) # add # rooms and people into data dicts
                         instant_obj = Hotel_Instance.create_objects(**instant_dict , hotel = self) # (Done , due to datetime format and datefield auto_now_add) : BUG in Hotel_instance __eq__ function !!!
                         un_exist_objs.append(instant_obj)
 
@@ -275,6 +276,7 @@ class Hotel_Instance(models.Model):
     # the client information(Auto-update)
     query_date = models.DateField(default=datetime.date.today) # the date the clients makes query action
     num_rooms = models.IntegerField(default=0)
+    num_people = models.IntegerField(default=0)
 
     # the query information
     queried_date = models.DateField(default='') # the date of the hotel is queried
@@ -424,3 +426,35 @@ class Array_3d(models.Model):
     def get_np_array(self):
         return np.array(self.array)
 
+
+class Line_client(models.Model):
+
+    # user informations
+    user_id = models.CharField(max_length=100, null=True ,blank=True ,default=None)
+    query_date = models.DateField(default=datetime.date.today)  # the datetime client make query
+    entering_message = models.CharField(max_length=100, null=True ,blank=True ,default=None) # the message client entering the apps
+    type_header = models.CharField(max_length=100, null=True ,blank=True ,default=None) # to record the stage of the user in
+
+    # user request
+    admin_area = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+    queried_date = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+    num_rooms = models.IntegerField(null=True ,blank=True ,default=None)
+    num_people = models.IntegerField(null=True ,blank=True ,default=None)
+    NeedRecommendOrNot = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+    silence = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+    food = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+    sightseeing = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+
+    @classmethod
+    def create_obj_by_dict(cls, **store_dict):
+        # basic attribute
+        obj = cls(**store_dict)
+        if obj not in cls.objects.all():
+            obj.save()  # if not has same data in database , update it .
+        return obj
+
+    def __eq__(self , other):
+
+        # if client with same id and same "login or query" time , it's the same object.
+        return self.user_id == other.user_id \
+        and self.query_date == other.query_date

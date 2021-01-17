@@ -118,6 +118,7 @@ def handle_message(event):
     # got client object
     # In the beginning of entering apps ,
     # try to get existing Line_client ; if not exist , initial Line_client object
+    # TODO　: 這邊要決定一個client obj 刪除時機的機制 , 不然會造成我今天查詢到一半掛機 , 再回來查 type_header 不會從頭來的窘境XD
     try:
         client_obj = Line_client.objects.get(user_id=event.source.user_id,
                                              query_date=datetime.date.today())
@@ -126,18 +127,19 @@ def handle_message(event):
                                                     query_date=datetime.date.today())
 
 
-    # TODO :假設目前是要接收 postback button 回傳 ,但 client 不小心弄成 message 回傳 , 要如何導回 postback handle?
-    # TODO :設置一個 accept_list , 假設 type_header 不在裡面 , 可先導回 return_postback 並 "倒退 type header" , 以重傳一次 postback button ?
-    # TODO :但目前問題是 BREAK POINT 那邊進行 "倒退 type header" 會有些困難在 XDD
+    # TODO : 可否直接儲存 type_header into client_object?
 
-    # Got a message event back , and parse current type and data ; if 'NeedRecommendOrNot' , special handle
-    if client_obj.NeedRecommendOrNot == "N" and client_obj.silence == None:
-        type_header = 'Hotel_name_input'
+    # Got a message event back , and parse current type and data ;
+    # if 'NeedRecommendOrNot' , special judge ; if == 'N' , and  'silence' empty , means it has been "fork" to 'Hotel_name_input'
+    if not client_obj.entering_message:
+        client_obj.type_header = type_header = 'entering_message'
+    elif client_obj.NeedRecommendOrNot == "N" and client_obj.silence == None:
+        client_obj.type_header = type_header = 'Hotel_name_input'
     else:
-        type_header = find_type_header(client_obj) # find the empty client attributes , it's actually the type_header now!
+        type_header = client_obj.type_header # find the empty client attributes , it's actually the type_header now!
+    msg = event.message.text # got messages
 
-    # got messages
-    msg = event.message.text #TODO: instance 這邊要怎傳給 postback ?
+    # TODO: instance 這邊要怎傳給 postback ?
 
     # 這邊檢查避免 type 錯誤的狀況 (明明給 postback button , 卻輸入文字 message )
     if type_header in message_accept_type:
@@ -171,22 +173,19 @@ def return_message(event,
 
 
     '''
-      # NO need recommend , collecting HOTEL NAME (data like: 'HotelName_Y_6_3_2020-02-12_花蓮_')
-      # and filter it from hotel objects  , queried_date
-      # than use construct_instant_attr method,
-      # to update room status days before and after queried_date.
+    # function : return the message
 
-      pass # message 輸入 hotel 並 scrape hotel instance information , 並弄成 dicts 丟進 dict_list 裡
-      contents = carousel_template_generator(temp_type='instance',
-                                             dict_list = None )
+    # next_type_header : the type will return to client side
+
     '''
     contents = None
-    # special handle for BREAK POINT "NeedRecommendOrNot"
-    if type_header == 'NeedRecommendOrNot' and client_obj.getattr(type_header) == 'N':
-        next_type_header = 'Hotel_name_input'
-    else:
-        next_type_header = next_type_hash.get(type_header)
 
+    # special handle for BREAK POINT "NeedRecommendOrNot" ; if got "N" in 'NeedRecommendOrNot' stage , "fork" to 'Hotel_name_input'
+    if type_header == 'NeedRecommendOrNot' and client_obj.getattr(type_header) == 'N':
+        next_type_header = client_obj.type_header = 'Hotel_name_input'
+    else:
+        next_type_header = client_obj.type_header = next_type_hash.get(type_header)
+    client_obj.save()
 
     if not next_type_header:
         raise ValueError('No next type exist!!!')
@@ -233,7 +232,7 @@ def handle_postback(event):
                                          query_date=datetime.date.today())
 
     # Got a post event back , and parse the current type and data
-    type_header = event.postback.data.split('&')[0]  # EX : 'admin' (type of request template)
+    type_header = client_obj.type_header  # EX : 'admin' (type of request template)
     pre_postback_data = event.postback.data.split('&')[1]  # EX : '[安平古堡]_[牛肉湯]_Hot_Y_6_3_2020-02-12_花蓮_'
 
     # saving attr to database
@@ -243,8 +242,11 @@ def handle_postback(event):
             setattr(client_obj , type_header , pre_postback_data)
             client_obj.save()
 
-        # if NeedRecommendOrNot == "N" or food type , transfer to return message
-        if (type_header == 'NeedRecommendOrNot' and pre_postback_data == "N") or  type_header == "food" :
+        # if NeedRecommendOrNot == "N" or food type , "fork" to return message
+        if (type_header == 'NeedRecommendOrNot' and client_obj.getattr(type_header) == "N") or \
+            type_header == "food" or  \
+            type_header == "recommend_food" :
+
             return_message(event,
                            client_obj=client_obj,
                            type_header=type_header)
@@ -272,17 +274,19 @@ def return_postback(event ,
     # special handle the CHECK POINT "NeedRecommendOrNot"
 
     contents = None
-    next_type_header = next_type_hash.get(type_header, None)  # got next type template
+
+    next_type_header = client_obj.type_header = next_type_hash.get(type_header, None)  # got next type template
+    client_obj.save()
 
     if not next_type_header:
         raise ValueError('No next type exist!!!')
-
 
     # if next stage "recommend" , use client data to call find_best_hotel() to find best 5 hotels
     if next_type_header == 'recommend':
 
         # next_type_header of "sightseeing" 會從這傳入
-        dict_list = get_recommend_hotels(client_obj)# define scrape recommend hotels function!!!
+
+        dict_list = get_recommend_hotels(client_obj)
         contents = carousel_template_generator(temp_type=next_type_header,
                                                dict_list=dict_list)
 
@@ -291,6 +295,8 @@ def return_postback(event ,
     elif next_type_header == 'instant':
 
         # next_type_header of "recommend" or "hotel_name_input" 會從這傳入!!
+        # note that , need to pass "source_name" into get_hotel_instance !
+
         dict_list = get_hotel_instance(client_obj) # define scrape hotel instant function!!!
         contents = carousel_template_generator(temp_type=next_type_header,
                                                dict_list=dict_list)

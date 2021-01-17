@@ -356,7 +356,7 @@ def button_template_generator(
         if not kwargs:
             raise ValueError('No hotel atrributes assigned!')
 
-        name = kwargs.get('name',None)
+        source_name = kwargs.get('source_name',None)
         source_rating = kwargs.get('source_rating',None)
         star = kwargs.get('star',None)
         pic_link = kwargs.get('pic_link',None)
@@ -381,7 +381,7 @@ def button_template_generator(
                             "contents": [
                               {
                                 "type": "text",
-                                "text": name,
+                                "text": source_name,
                                 "weight": "bold",
                                 "size": "sm",
                                 "wrap": True
@@ -417,7 +417,7 @@ def button_template_generator(
                                         "label": "快看看你選的日期房況!",
                                         # 這邊 postback data 是要找出 filtered Hotel instance ,
                                         # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
-                                        "data": None,
+                                        "data": f"{temp_type}&{source_name}",
                                     }
                                 },
                                 {
@@ -427,7 +427,7 @@ def button_template_generator(
                                     "action": {
                                         "type": "postback",
                                         "label": "附近有什麼好吃的咧?",
-                                        "data": None
+                                        "data": f"recommend_food&{source_name}" # special change the header name
                                     }
                                 },
                                 {
