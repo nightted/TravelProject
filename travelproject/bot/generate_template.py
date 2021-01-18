@@ -1,4 +1,5 @@
-from bot.models import *
+from bot.constants import *
+
 
 def generate_rating_star(rating , font_size = None , font_color = None):
 
@@ -187,7 +188,7 @@ def button_template_generator(
                 "contents": [
                     {
                         "type": "text",
-                        "text": "幾個人要去?",
+                        "text": "要訂幾間房?",
                         "size": "xxl",
                         "style": "italic",
                         "weight": "bold",
@@ -427,7 +428,7 @@ def button_template_generator(
                                     "action": {
                                         "type": "postback",
                                         "label": "附近有什麼好吃的咧?",
-                                        "data": f"recommend_food&{source_name}" # special change the header name
+                                        "data": f"{temp_type}&FoodRecommend_{source_name}" # special change the header name
                                     }
                                 },
                                 {
@@ -440,47 +441,67 @@ def button_template_generator(
 
         }
 
-    elif temp_type == 'instance':
+    elif temp_type == 'instant':
 
         # Those property all got from selected hotels attributes
         if not kwargs:
             raise ValueError('No hotel atrributes assigned!')
 
         price = kwargs.get('price',None)
+        price = str(price) if price else "太夯了!!已售完!!"
+
         room_recommend = kwargs.get('room_recommend',None)
-        room_remaining = kwargs.get('room_remaining',None)
+        room_remainings = kwargs.get('room_remainings',None)
         queried_date = kwargs.get('queried_date',None)
+
         instant_hrefs = kwargs.get('instant_hrefs',None)
+        instant_hrefs = BOOKING_URL + instant_hrefs if instant_hrefs else BASE_BOOKING_URL
+
+        pic_link = kwargs.get('pic_link', None)
 
         button = {
             "type": "bubble",
-
             "size": "micro",
-
             "hero": {
                 "type": "image",
-                "url": img_url,
+                "url": pic_link,
                 "size": "full",
                 "aspectMode": "cover",
                 "aspectRatio": "320:213"
             },
-
             "body": {
                 "type": "box",
                 "layout": "vertical",
                 "contents": [
                     {
                         "type": "text",
-                        "text": place_name,
+                        "text": str(queried_date),
                         "weight": "bold",
                         "size": "sm",
                         "wrap": True
                     },
                     {
-                        "type": "box",
-                        "layout": "baseline",
-                        "contents": generate_rating_star(rating)
+                        "type": "text",
+                        "text": room_recommend,
+                        "weight": "bold",
+                        "size": "sm",
+                        "wrap": True
+                    }
+                    ,
+                    {
+                        "type": "text",
+                        "text": room_remainings,
+                        "weight": "bold",
+                        "size": "sm",
+                        "wrap": True
                     },
+                    {
+                        "type": "text",
+                        "text": "$" + str(price) + "TWD",
+                        "weight": "bold",
+                        "size": "sm",
+                        "wrap": True
+                    }
                 ],
                 "spacing": "sm",
                 "paddingAll": "13px"
@@ -491,32 +512,29 @@ def button_template_generator(
                 "layout": "vertical",
                 "spacing": "sm",
                 "contents": [
+
+                    {
+                    "type": "button",
+                    "style": "link",
+                    "height": "sm",
+                    "action": {
+                        "type": "uri",
+                        "label": "快上網站訂房!!!",
+                        "uri": 'https://www.booking.com/searchresults.zh-tw.html'
+                        } # TODO: 這邊有 URL 太長出現 ERROR !!!
+
+                    },
+
                     {
                         "type": "button",
                         "style": "link",
                         "height": "sm",
                         "action": {
                             "type": "postback",
-                            "label": "快看看你選的日期房況!",
-                            # 這邊 postback data 是要找出 filtered Hotel instance ,
-                            # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
-                            "data": None,
+                            "label": "想看看別間?",
+                            "data": 'None' # TODO : 這邊要指定倒回 stage "recommend" or "hotel_name_input"
                         }
                     },
-                    {
-                        "type": "button",
-                        "style": "link",
-                        "height": "sm",
-                        "action": {
-                            "type": "postback",
-                            "label": "附近有什麼好吃的咧?",
-                            "data": None
-                        }
-                    },
-                    {
-                        "type": "spacer",
-                        "size": "sm"
-                    }
                 ],
                 "flex": 0
             }
@@ -530,9 +548,6 @@ def carousel_template_generator( temp_type ,
                                  dict_list,
                                 ):
     '''
-    這邊傳入 hotel objects or hotel_instance objects
-    並轉換成 dicts ,
-
     dict_list are objects' dict!
     e.g. : [
         { name : XX , room_source : OO} ,
@@ -540,14 +555,14 @@ def carousel_template_generator( temp_type ,
         ...
     ]
     '''
-
-
+    print(f"DEBUG : IN carousel_template_generator , temp_type = {temp_type}" )
 
     carousel_contents = {
         "type": "carousel",
-        "contents": [button_template_generator(temp_type=temp_type ,
-                                               **kwargs )
+        "contents": [button_template_generator(temp_type=temp_type , **kwargs )
                      for kwargs in dict_list]
+    }
+
+    return carousel_contents
 
 
-}

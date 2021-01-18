@@ -275,11 +275,11 @@ class Hotel_Instance(models.Model):
 
     # the client information(Auto-update)
     query_date = models.DateField(default=datetime.date.today) # the date the clients makes query action
+    queried_date = models.DateField(default='')  # the date of the hotel is
     num_rooms = models.IntegerField(default=0)
     num_people = models.IntegerField(default=0)
 
     # the query information
-    queried_date = models.DateField(default='') # the date of the hotel is queried
     instant_hrefs = models.TextField(null=True, blank=True, default=None)
     room_recommend = models.CharField(max_length=100)
     room_remainings = models.CharField(max_length=20)
@@ -344,8 +344,6 @@ class Resturant(Place):
 
         return obj
 
-
-
 class Station(Place):
 
     @classmethod
@@ -355,7 +353,6 @@ class Station(Place):
         if obj not in cls.objects.all():
             obj.save()  # if not has same data in database , update it .
         return obj
-
 
 class Sightseeing(Place):
 
@@ -395,7 +392,6 @@ class Array_2d(models.Model):
     def get_np_array(self):
         return np.array(self.array)
 
-
 class Array_3d(models.Model):
 
     admin_area = models.CharField(max_length=20 , default= '')
@@ -426,10 +422,9 @@ class Array_3d(models.Model):
     def get_np_array(self):
         return np.array(self.array)
 
-
 class Line_client(models.Model):
 
-    # user informations
+    # user information
     user_id = models.CharField(max_length=100, null=True ,blank=True ,default=None)
     query_date = models.DateField(default=datetime.date.today)  # the datetime client make query
     entering_message = models.CharField(max_length=100, null=True ,blank=True ,default=None) # the message client entering the apps
@@ -441,9 +436,13 @@ class Line_client(models.Model):
     num_rooms = models.IntegerField(null=True ,blank=True ,default=None)
     num_people = models.IntegerField(null=True ,blank=True ,default=None)
     NeedRecommendOrNot = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+    hotel_name_input = models.CharField(max_length=100, null=True, blank=True, default=None)
     silence = models.CharField(max_length=20, null=True ,blank=True ,default=None)
     food = models.CharField(max_length=20, null=True ,blank=True ,default=None)
     sightseeing = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+
+    # recommend hotels result
+    recommend = models.CharField(max_length=100, null=True ,blank=True ,default=None)
 
     @classmethod
     def create_obj_by_dict(cls, **store_dict):
