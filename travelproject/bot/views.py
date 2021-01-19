@@ -115,15 +115,6 @@ def callback(request):
 # 2. 接著判別是哪種 type 的 event , 並利用 reply_ function 選擇要回復的訊息 or 要回復的 template type , 進行回傳 client
 # 3. 最後 client 接收到訊息 or template , 再進行回覆 server (loop back to 1.)
 
-def find_type_header(client_obj):
-
-    for key, value in client_obj.__dict__.items():
-        if not value:
-            return key
-    else:
-        return None
-
-
 @handler.add(MessageEvent, message=[TextMessage , StickerMessage])
 def handle_message(event):
 
@@ -146,12 +137,11 @@ def handle_message(event):
 
     else:
         type_header = client_obj.type_header # find the empty client attributes , it's actually the type_header now!
-
     msg = event.message.text # parse messages from event object
 
     print('DEBUG handle_message type header: ', type_header)
 
-    # 這邊檢查避免 type 錯誤的狀況 (明明給 postback button , 卻輸入文字 message )
+    # to check the type is acceptable to message event.
     if type_header in message_accept_type:
 
         # saving data to database if data_key exist in object attr
@@ -210,7 +200,7 @@ def return_message(event,
         raise ValueError('No next type exist!!!')
 
     if next_type_header == 'hotel_name_input':
-        contents = '請輸入你想住的飯店~'
+        contents = '請輸入你想住的飯店~ (如沒回應 , 請再輸入一次!)'
 
     elif next_type_header == 'food_recommend':
         pass # TODO : find near_by resturant by obj.recommend hotel and do google search finding blog about those food
@@ -243,17 +233,16 @@ def handle_postback(event):
                                          query_date=datetime.date.today())
 
     # Got a post event back , and parse the current type and data
-    # TODO : 剩下處理 postback to postback 誤觸情況!
-    type_header = client_obj.type_header  # EX : 'admin' (type of request template)
+    type_header = event.postback.data.split('&')[0]   # get type header from postback data ; NOTE THAT 這邊為了避免 postback to postback 誤觸情況
+    pre_postback_data = event.postback.params['date'] if type_header == 'queried_date' else event.postback.data.split('&')[1]  # get data from postback data
 
     print('DEBUG handle_postback type header: ', type_header)
 
-    pre_postback_data = event.postback.params['date'] if type_header == 'queried_date' else event.postback.data.split('&')[1]  # EX : '[安平古堡]_[牛肉湯]_Hot_Y_6_3_2020-02-12_花蓮_'
+    # 這邊處理兩種誤觸狀況 : 1. message but postback 2. postback but previous postback
+    # Firstly, check the type header from postback is == from client.obj
+    if type_header == client_obj.type_header:
 
-
-    # saving attr to database
-    if type_header in postback_accept_type:
-
+        # saving attr to database
         if type_header in client_obj.__dict__:
             setattr(client_obj , type_header , pre_postback_data)
             client_obj.save()
@@ -275,12 +264,24 @@ def handle_postback(event):
             return_postback(event, client_obj, type_header) # Do reply function
 
     else:
-        # 倒退 type_header 一格, 重send data
+
+        # TODO : 這邊有另一個 BUG XDD ; 如果 'hotel_name_input' 下 , 按到 postback button , 則倒回這邊 'hotel_name_input' 不在 priority list 裡!
+
+        # Secondly , if not the same type between type header from postback and from client.obj
+        # return type_header for "1 stage" , re-send postback(or message) event
+        type_header = client_obj.type_header # let type_header equal to client_obj.type_header if these 2 are not the same type
         type_idx = priority.index(type_header)
-        type_header = client_obj.type_header = priority[type_idx - 1] # return to previous type
-        return_message(event,
-                       client_obj=client_obj,
-                       type_header=type_header)
+        type_header = client_obj.type_header = priority[type_idx - 1] # return to previous type and re-send message or postback data
+
+        # And then to check the type is acceptable to postback event.
+        if type_header in postback_accept_type:
+            return_postback(event,
+                           client_obj=client_obj,
+                           type_header=type_header)
+        else:
+            return_message(event,
+                           client_obj=client_obj,
+                           type_header=type_header)
 
 
 
@@ -295,7 +296,7 @@ def return_postback(event ,
     contents = None
 
     next_type_header = client_obj.type_header = next_type_hash.get(type_header, None)  # got next type template
-    client_obj.save()
+    client_obj.save() # save the update on type_header
 
     print('DEBUG return_postback type header and next_type_header: ', type_header ,  next_type_header)
 
