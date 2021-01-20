@@ -22,6 +22,7 @@ center_of_city = {
 }
 
 KEY_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/docs/API_KEY.txt' # TODO : set as enviroment variables
+SECRET_KEY_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/docs/SECRET_KEY.txt'
 ACCESS_TOKEN_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/docs/keys/CHANNEL_ACCESS_TOKEN.txt'
 SECRET_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/docs/keys/CHANNEL_SECRET.txt'
 BOOKING_URL = 'https://www.booking.com'

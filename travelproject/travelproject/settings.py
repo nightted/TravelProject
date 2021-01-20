@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
 from pathlib import Path
+from bot.tools import read_key
+from bot.constants import SECRET_KEY_PATH
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +22,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'lr^(opmdcmx@u^nh7g1)+#(&m#944nc0##n+xnac)-===60ucn'
+SECRET_KEY = read_key(SECRET_KEY_PATH)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['']
 
 
 # Application definition
@@ -37,7 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'linebot.apps.LinebotConfig' # use the name of class in apps.py
+    'django_rename_app', # https://pypi.org/project/django-rename-app/
+    'bot.apps.BotConfig' # use the name of class in apps.py
 ]
 
 MIDDLEWARE = [
