@@ -26,3 +26,4 @@ from linebot.models import (
     PostbackTemplateAction, # detail postback action in template
     DatetimePickerTemplateAction # detail datetime action in template
 )
+
