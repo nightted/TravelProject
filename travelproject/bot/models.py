@@ -429,6 +429,7 @@ class Line_client(models.Model):
     query_date = models.DateField(default=datetime.date.today)  # the datetime client make query
     entering_message = models.CharField(max_length=100, null=True ,blank=True ,default=None) # the message client entering the apps
     type_header = models.CharField(max_length=100, null=True ,blank=True ,default=None) # to record the stage of the user in
+    type_record = ArrayField(models.CharField(max_length=50 , default=None) ,default=list)
 
     # user request
     admin_area = models.CharField(max_length=20, null=True ,blank=True ,default=None)
