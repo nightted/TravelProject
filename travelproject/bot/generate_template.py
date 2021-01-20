@@ -160,7 +160,7 @@ def button_template_generator(
                                     "label": "選個日期吧!",
                                     "mode": "date",
                                     "initial": "2021-02-01",
-                                    "data": f"action=sell&itemid=2&mode=date", # TODO date 怎抓!!!
+                                    "data": f"{temp_type}&None", # TODO date 怎抓!!!
                                     "max": "2022-02-01",
                                     "min": "2021-01-01"
                                 }
