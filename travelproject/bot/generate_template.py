@@ -456,6 +456,7 @@ def button_template_generator(
 
         instant_hrefs = kwargs.get('instant_hrefs',None)
         instant_hrefs = BOOKING_URL + instant_hrefs if instant_hrefs else BASE_BOOKING_URL
+        instant_hrefs = instant_hrefs[:-27] + instant_hrefs[-26:] # 去除 "\n" XD
 
         pic_link = kwargs.get('pic_link', None)
 
@@ -520,8 +521,8 @@ def button_template_generator(
                     "action": {
                         "type": "uri",
                         "label": "快上網站訂房!!!",
-                        "uri": 'https://www.booking.com/searchresults.zh-tw.html'
-                        } # TODO: 這邊有 URL 太長出現 ERROR !!!
+                        "uri": instant_hrefs
+                        }
 
                     },
 
