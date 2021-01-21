@@ -245,7 +245,7 @@ def return_message(event,
 
     reply_action = [TextSendMessage(text=contents)]
     if other_msg:
-        for _, msg in other_msg.items():
+        for _ , msg in other_msg.items():
             reply_action.insert(0, TextSendMessage(text=msg))  # insert other msg in front of button reply
 
     line_bot_api.reply_message(
@@ -264,7 +264,6 @@ def handle_postback(event):
     # carousal :　https://github.com/xiaosean/Line_chatbot_tutorial/blob/master/push_tutorial.ipynb
 
     # got client object
-    # TODO : 這邊要考慮例外狀況 , 如果 client_obj not exist , 卻按了"先前的" postback button , 怎處理???
     try:
         client_obj = Line_client.objects.get(user_id=event.source.user_id,
                                              query_date=datetime.date.today())
@@ -315,6 +314,7 @@ def handle_postback(event):
 
         type_header = client_obj.type_header # let type_header equal to client_obj.type_header if these 2 are not the same type at this time
         type_header = get_pre_type_header(type_header, client_obj)
+
         # And then to check what type actually it is.
         if type_header in postback_accept_type:
             return_postback(event,
@@ -455,6 +455,8 @@ def get_hotel_instance(client_obj):
 
 
 def save_attr_to_database(type_header, client_obj, data):
+
+    #function : store the client_obj attr to database
     if type_header in client_obj.__dict__:
         setattr(client_obj, type_header, data)
         client_obj.save()
@@ -464,13 +466,23 @@ def save_attr_to_database(type_header, client_obj, data):
 
 def get_similar_name_hotel(selected_hotel):
 
+    '''
+    #function : find the hotel with similar name
+
+    :param selected_hotel: the name of hotel want to search
+    :return: the hotel with similar name to selected hotel
+    '''
+
     selected_name, max_length, max_char_hotel = selected_hotel, 0, None
     for hotel in Hotel.objects.all():
 
-        max_len_similar, max_len_chars = find_common_word_2str(selected_name, hotel.name)
-        if max_len_similar > max_length:
-            max_length = max_len_similar
-            max_char_hotel = hotel
+        # only get the hotel with room_source
+        if hotel.room_source:
+
+            max_len_similar, max_len_chars = find_common_word_2str(selected_name, hotel.name)
+            if max_len_similar > max_length:
+                max_length = max_len_similar
+                max_char_hotel = hotel
 
     selected_hotel = max_char_hotel if max_length >=2 else None
 
@@ -478,6 +490,14 @@ def get_similar_name_hotel(selected_hotel):
 
 
 def get_pre_type_header(type_header , client_obj):
+
+    '''
+    # function: back to the previous stage of type
+
+    :param type_header:  the stage of type now client in
+    :param client_obj:  the client object
+    :return: the previous stage of type
+    '''
 
     client_obj.type_record.pop() # remove current type
     type_header = client_obj.type_header = client_obj.type_record[-1] # get last element of type record (previous type) after rm cur type as cur type
