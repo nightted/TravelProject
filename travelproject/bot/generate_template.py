@@ -160,7 +160,7 @@ def button_template_generator(
                                     "label": "選個日期吧!",
                                     "mode": "date",
                                     "initial": "2021-02-01",
-                                    "data": f"{temp_type}&None", # TODO date 怎抓!!!
+                                    "data": f"{temp_type}&None",
                                     "max": "2022-02-01",
                                     "min": "2021-01-01"
                                 }
@@ -428,7 +428,7 @@ def button_template_generator(
                                     "action": {
                                         "type": "postback",
                                         "label": "附近有什麼好吃的咧?",
-                                        "data": f"{temp_type}&FoodRecommend_{source_name}" # special change the header name
+                                        "data": f"{temp_type}&food_recommend" # special change the header name
                                     }
                                 },
                                 {
@@ -532,10 +532,20 @@ def button_template_generator(
                         "height": "sm",
                         "action": {
                             "type": "postback",
-                            "label": "想看看別間?",
-                            "data": 'None' # TODO : 這邊要指定倒回 stage "recommend" or "hotel_name_input"
+                            "label": "想看看其他的推薦?",
+                            "data": f'{temp_type}&return_recommend'
                         }
                     },
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "postback",
+                            "label": "重新搜尋?",
+                            "data": f'{temp_type}&return_search'
+                        }
+                    }
                 ],
                 "flex": 0
             }
