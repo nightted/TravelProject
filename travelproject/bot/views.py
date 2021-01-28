@@ -44,6 +44,11 @@ from linebot.models import (
     DatetimePickerTemplateAction # detail datetime action in template
 )
 
+# TODO　list :
+# 1. 抓取其他縣市的 data 進 SQL
+# 2.
+
+
 # Line bot settings
 config = configparser.ConfigParser()
 config_file = os.path.join(os.path.dirname(__file__), 'config.ini') # https://stackoverflow.com/questions/29426483/python3-configparser-keyerror-when-run-as-cronjob
@@ -127,7 +132,7 @@ def handle_message(event):
     # In the beginning of entering apps ,
     # try to get existing Line_client ; if not exist , initial Line_client object
     # TODO　: 這邊要決定一個client obj 刪除時機的機制 , 不然會造成我今天查詢到一半掛機 , 再回來查 type_header 不會從頭來的窘境XD
-
+    # TODO : 應該可設置成, 十分鐘內要是沒查詢 , 就直接清空 line_client 的所有資料 (但 user_id 一樣留著 ,只清空 attrs)
     try:
         client_obj = Line_client.objects.get(user_id=event.source.user_id,
                                              query_date=datetime.date.today())
@@ -167,9 +172,8 @@ def handle_message(event):
 
     else:
 
-        # 這邊處理一種誤傳 message (本來是 postback button)狀況
+        # 這邊處理一種誤傳 message (本來是 postback button 卻傳 message )狀況
         # check the type is acceptable to message event; if not , it's belong to postback event
-
         if type_header in message_accept_type:
 
             # if type == entering_message or sightseeing or hotel name input , transfer to return postback
@@ -228,6 +232,7 @@ def handle_message(event):
 
         else:
 
+            # 這邊處理一種誤傳 message (本來是 postback button)狀況
             # return type_header for "1 stage" , re-send postback event
             type_header = type_header_backward(client_obj)
             return_postback(event,
@@ -247,6 +252,7 @@ def return_message(event,
     # next_type_header : the type will return to client side
 
     '''
+    contents = None
 
     # special handle for BREAK POINT "NeedRecommendOrNot" ; if got "N" in 'NeedRecommendOrNot' stage , "fork" to 'hotel_name_input'
     if type_header == 'NeedRecommendOrNot' and getattr(client_obj , type_header) == 'N':
@@ -256,12 +262,11 @@ def return_message(event,
     else:
         next_type_header = client_obj.type_header = next_type_hash.get(type_header)
         client_obj.type_record.append(next_type_hash.get(type_header))
-
     client_obj.save()
+
 
     print('DEBUG return_message client_obj.type_record ', client_obj.type_record)
 
-    contents = None
 
     if not next_type_header:
         raise ValueError('No next type exist!!!')
@@ -272,18 +277,6 @@ def return_message(event,
 
     elif next_type_header == 'sightseeing':
         contents = '請輸入你想去的景點~ , 輸入完成後請靜待3~5秒鐘等待資料抓取~'
-
-    """elif next_type_header == 'food_recommend':
-
-        contents = ''
-        select_hotel_name = client_obj.recommend
-        result = get_nearby_resturant_search_result_by_hotel(select_hotel_name)
-
-        for URL , article_preview in result:
-            contents += URL
-            contents += '\n'
-            contents += article_preview
-            contents += '\n'"""
 
     if not contents:
         raise ValueError(" No content assign !! ")
@@ -330,10 +323,9 @@ def handle_postback(event):
         type_header = event.postback.data.split('&')[0]   # get type header from postback data ; NOTE THAT 這邊為了避免 postback to postback 誤觸情況 , 取 template type 來跟 client_obj.type_header 來做比對
         pre_postback_data = event.postback.params['date'] if type_header == 'queried_date' else event.postback.data.split('&')[1]  # get data from postback data
 
-    # 這邊處理兩種 postback button (本來是 message or postback button) 誤觸狀況 :
-    # Firstly, check the type header from postback is == from client.obj
 
-    print(f'DEBUG in handle postback : {type_header} , {client_obj.type_header}')
+    # 這邊處理兩種 postback button (本來是 message or postback button 卻誤觸更先前的 postback button) 誤觸狀況 :
+    # Firstly, check the type header from postback is == from client.obj
     if type_header == client_obj.type_header:
 
         # BREAK POINT for 'silence' and 'hotel_name_input'
@@ -393,17 +385,18 @@ def handle_postback(event):
         # Secondly , if not the same type between type header from postback and from client.obj
         # return type_header for "1 stage" , re-send postback(or message) event
 
-        type_header = type_header_backward(client_obj)
+        now_type_header = client_obj.type_header # 注意 , 這裡要用"目前的" type 來進行判斷要 send message 還是 postback
+        pre_type_header = type_header_backward(client_obj) # 確認完後 , 一樣倒退一格 type and re-send.
 
         # And then to check what type actually it is.
-        if type_header in postback_accept_type:
+        if now_type_header in postback_accept_type:
             return_postback(event,
                            client_obj=client_obj,
-                           type_header=type_header)
+                           type_header=pre_type_header)
         else:
             return_message(event,
                            client_obj=client_obj,
-                           type_header=type_header)
+                           type_header=pre_type_header)
 
 
 
@@ -526,6 +519,7 @@ def get_hotel_instance(client_obj):
 
     if getattr(client_obj , 'recommend'):
         selected_name = getattr(client_obj , 'recommend')
+        selected_name = selected_name.split('_')[1]
 
     elif getattr(client_obj , 'hotel_name_input'):
         selected_name = getattr(client_obj , 'hotel_name_input')
