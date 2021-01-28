@@ -130,6 +130,7 @@ def detect_peaks(image):
     #apply the local maximum filter; all pixel of maximal value
     #in their neighborhood are set to 1
     local_max = maximum_filter(image, footprint=neighborhood)==image
+
     #local_max is a mask that contains the peaks we are
     #looking for, but also the background.
     #In order to isolate the peaks we must remove the background from the mask.
@@ -154,13 +155,19 @@ def maximum_filter_method(density_stack ,
                           corrections ,
                           grid_to_latlng ,
                           basic_weights ,
-                          food_weights = 5 ,
-                          demand_threshold = 3
+                          food_weights = 5
                           ):
+
 
     density_stack_weighted = [corr * basic_weights.get(den_name, food_weights) * matrix for corr, den_name, matrix in zip(corrections, density_name, density_stack)]  # get weighted stacking matrix (3D)
     density_stack_weighted = np.sum(density_stack_weighted, axis=0)  # Score : sum over all type of density  (2D)
+
+    #print('DEBUG density_stack_weighted :', density_stack_weighted)
+
     peaks_binary = detect_peaks(density_stack_weighted) # get peaks binary data (if it's peak ,set as True ; else as False)
+
+    #print('DEBUG max filter :' , peaks_binary )
+
 
     # extract lat,lng and calculate score from peaks_binary
     peaks = []
@@ -169,10 +176,8 @@ def maximum_filter_method(density_stack ,
             if col:  # if True , means it's peaks.
 
                 peak_score = density_stack_weighted[idx_r][idx_c]
-                if peak_score > demand_threshold: # the peak score must larger than some default threshold
-
-                    peaks.append([list(grid_to_latlng[idx_r][idx_c]), peak_score])
-                    # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
+                peaks.append([list(grid_to_latlng[idx_r][idx_c]), peak_score])
+                # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
 
     return peaks
 
@@ -183,12 +188,14 @@ def iterate_method(density_stack ,
                    grid_to_latlng ,
                    basic_weights ,
                    food_weights = 5 ,
-                   demand_threshold = 3
                    ):
 
     # initialize params
     shape_W_L = density_stack.shape[1]
     peaks, excludes = [], []
+
+    density_stack_weighted = [corr * basic_weights.get(den_name, food_weights) * matrix for corr, den_name, matrix in zip(corrections, density_name, density_stack)]  # get weighted stacking matrix (3D)
+    density_stack_weighted = np.sum(density_stack_weighted, axis=0)  # Score : sum over all type of density  (2D)
 
     # main loops for finding peaks
     for i in range(shape_W_L):
@@ -196,35 +203,19 @@ def iterate_method(density_stack ,
 
             if [i, j] not in excludes:  # if not excludes points
 
-                # find surrounding 8 positions
-                # (Done) : reduce to judge 4 points (top , down , left , right) around point i ,j
-                # surrounding = [[k, l] for k in range(i - 1, i + 2) for l in range(j - 1, j + 2) if(k != i or l != j) and (shape_W_L > k >= 0 and shape_W_L > l >= 0)]
+                # find surrounding 4 positions
                 surrounding_x = [[k, j] for k in range(i - 1, i + 2) if (k != i) and shape_W_L > k >= 0]
                 surrounding_y = [[i, k] for k in range(j - 1, j + 2) if (k != j) and shape_W_L > k >= 0]
                 surrounding = surrounding_x + surrounding_y
 
-                # score of surroundings
-                density_surroundings = [density_stack[:, pos_x, pos_y] for pos_x, pos_y in surrounding]
-                score_surrounding = []
-                for density_surrounding in density_surroundings:
-                    score = 0
-                    for correction, name, density in zip(corrections, density_name, density_surrounding):
-                        score += correction * basic_weights.get(name, food_weights) * density
-                    score_surrounding.append(score)
-
-                # score of center
-                density_center = density_stack[:, i, j]
-                score = 0
-                for correction, name, density in zip(corrections, density_name, density_center):
-                    score += correction * basic_weights.get(name, food_weights) * density
-                score_center = score
+                score_center = density_stack_weighted[i,j]
+                score_surrounding = [density_stack_weighted[x , y] for x , y in surrounding]
 
                 # if center larger than all surroundings and larger than minimum threshold , keep the point
-                if len(list(filter(lambda x: x < score_center, score_surrounding))) == 4 and abs(score_center) > demand_threshold:
+                if len(list(filter(lambda x: x < score_center, score_surrounding))) == 4 :
 
                     excludes = excludes + surrounding  # store the excludes points ( if the points is a peak , the surrounding points must not be peaks !)
-                    peaks.append([list(grid_to_latlng[i][j]), score_center ])
-                    # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
+                    peaks.append([list(grid_to_latlng[i][j]), score_center ]) # peaks = [ [ [lng1,lat1] , score1 ] , [ [lng2,lat2] , score2 ] , ...]
 
     return peaks
 
@@ -256,6 +247,7 @@ def search_peak(*density_objects,
     grid_to_latlng = Array_3d.objects.get(name = 'gridtolatlng' , admin_area = admin_area).array
     city_center = [ center_of_city[admin_area]['location']['lng'],
                     center_of_city[admin_area]['location']['lat'] ]
+
     tolerance_distance = 10000 # the max tolerance distance to reach
 
     # the minimum score of point to find ( don't consider peak with score less than this value )
@@ -268,11 +260,18 @@ def search_peak(*density_objects,
         'hotel': 0.25
     }
 
+    # the weights of correction in density
+    basic_correction = {
+        'resturant': -1 if silence_demand else 1,
+        'con': -1 if silence_demand else 1,
+        'hotel': 1
+    }
+
     # the weights of special food(You want to eat!) density , such : porkrice , eulnooles , beefsoup ..
     food_weights = 6
 
     # corrected weight for silence demand (from get min -> max ,so add negative weight -1)
-    corrections = [1] * len(density_objects) if not silence_demand else [-1] * len(basic_weights) + [1] * (len(density_objects) - len(basic_weights))
+    corrections = [basic_correction.get(den_obj.name , 1) for den_obj in density_objects]
 
     # initialize data of train_station and sightseeing (for 1/r wighting use)
     stations = Station.objects.filter(place_sub_type = 'train' , admin_area = admin_area)
@@ -280,7 +279,8 @@ def search_peak(*density_objects,
     sightseeing_positions = get_latlng_directly(target_sightseeing , admin_area) if target_sightseeing else []  #TODO (備忘): This will consume Google map api cost
     sightseeing_positions = [position for position in sightseeing_positions if distance(position , city_center) < tolerance_distance ] # filter too far sightseeing
 
-    all_positions = station_position + sightseeing_positions # combine'
+    all_positions = station_position + sightseeing_positions # combine
+
     if not all_positions:
         raise NameError('No position exist , will cause calculate error!')
 
@@ -288,18 +288,31 @@ def search_peak(*density_objects,
     density_name = [ density_obj.name for density_obj in density_objects ]  # all the name of densitys => [resturant , eelnoodles , ..]
     density_stack = np.array([density_obj.array for density_obj in density_objects])  # stack the all the densitys
 
-    # using peaks-search algorithm to find peaks
+    # using peaks-search algorithm to find peaks based on density data
     peaks = maximum_filter_method(density_stack=density_stack,
                                   density_name=density_name,
                                   corrections=corrections,
                                   grid_to_latlng=grid_to_latlng,
                                   basic_weights=basic_weights,
-                                  food_weights=food_weights,
-                                  demand_threshold=demand_threshold)
+                                  food_weights=food_weights)
+
+    # 這邊解釋一下這個判斷的用意 , 因為 silence_demand 針對 basic density stack(hotel , resturant , con)
+    # 要取的是 "local minimum" , 故要轉換成取 "local maximum" 就要取負號(也就是 corrections (=-1) 用意)
+    # 但這邊會有個狀況就是 , 要是只考慮 basic density 而已 (也就是沒其他 target foods),
+    # 抓 peak 的時候會抓到 density = 0 的點 (), 再取負號後他理所當然變成最大值! 所以這邊先針對 density = 0 的點先進行過濾
+    # 但這裡要注意一件事 , 假如有 target foods 情況下 , 因為 foods density corrections 是正(=1)的
+    # 故有可能會發生 density = 0 的地方, 加上 food density 後變成 positive peak 的狀況 ,
+    # 取得這樣的 peak 可能會造成附近 hotel 抓取不到的現象! TODO :
+
+    if silence_demand and len(density_objects) == len(basic_weights):
+        peaks = [ [latlng , score] for latlng , score in peaks if score != 0] # filter density = 0 peak (because it was selected!)
+        min_score = min([ score for _ , score in peaks ])
+        peaks = [ [latlng , (-1*min_score) + score + 0.1] for latlng , score in peaks] # shift the value up min_value to let all value positive
 
     # sort peaks by scores and get topN peaks
     topN = topN if topN < len(peaks) else len(peaks)  # choose topN peaks
     peaks = sorted(peaks, reverse=True, key=lambda x: x[1])[:topN]
+    print('DEBUG in search peaks : ', peaks)
 
 
     # modify score topN peaks by r^-1 weight from special position (e.g. sightseeing or target food stores)
