@@ -5,7 +5,7 @@ from bot.density_analysis import *
 from bot.object_filter import filter_store_by_criteria
 from bot.tools import set_env_attr , distance
 
-set_env_attr()  # set env attrs
+set_env_attr()  # set env attrs TODO : 後續 deploy 要處理這邊的環境變數設置 !!!
 from bot.models import *
 
 '''
@@ -34,7 +34,7 @@ def find_hotel_by_points_and_rating( point ,
                                       criteria=search_radius,
                                       scan_shape='circle')
 
-    hotels = list(filter(threshold_judge, hotels)) if  hotels else None # filter booking_rating and star
+    hotels = list(filter(threshold_judge, hotels)) if  hotels else None # filter by booking_rating
 
     return hotels
 
@@ -46,7 +46,7 @@ def find_best_hotels(*density_objects ,
                      silence_demand=False ,
                      target_sightseeing=None ,
                      target_food=None ,
-                     num_to_find = 3 , # can't set too large . the while loop won't terminate XDD!
+                     num_to_find = 4 , # can't set too large . the while loop won't terminate XDD!
                      topN = 50 ,
                      gmap_rating_threshold = 4.0 ,
                      booking_rating_threshold = 8.0 ,
@@ -83,10 +83,8 @@ def find_best_hotels(*density_objects ,
 
         select_food = []
         for key_food in hash_name_obj_density.keys():
-            for food in target_food:
-                if find_common_word_2str(food, key_food)[0] >= 2:
-                    select_food.append(key_food) # add food into list to calculate density
-                    target_food.remove(food) # remove this food in original list
+            if find_common_word_2str(target_food, key_food)[0] >= 2:
+                select_food.append(key_food) # add food into list to calculate density
 
         select_food = list(set(select_food))
         if select_food:
@@ -94,6 +92,8 @@ def find_best_hotels(*density_objects ,
             food_names = [ hash_name_obj_density[food] for food in select_food ] # get food names
             food_density_objects = [ Array_2d.objects.get(name = food_name) for food_name in food_names ]  # get food density objs
             density_objects = [*density_objects, *food_density_objects] # combine with input density
+
+        #print(f'DEBUG find hotel : len of density : {len(density_objects)}')
 
         if len(target_food) > 0:
 
@@ -109,20 +109,22 @@ def find_best_hotels(*density_objects ,
                             topN = topN
                             )
 
+
     t3 = t.time()
 
     # get closest hotels around those peaks
     peaks = [location for location , _ in top_peaks] # get peaks
-    scores = [score for _ , score in top_peaks] # get scores of these peaks
+    #scores = [score for _ , score in top_peaks] # get scores of these peaks
 
     best_hotels , best_points , loop_times = [] , [] , 1
     while len(best_hotels) < num_to_find:
 
-        select_point = random.choices( peaks , weights= scores )[0] #(Done) random select 1 point form topN points ; selection weights from point score calculate before
+        select_point = random.choices( peaks )[0] #(Done) random select 1 point form topN points ; selection weights from point score calculate before
         select_hotel = find_hotel_by_points_and_rating( select_point ,
-                                                         admin_area ,
-                                                         gmap_rating_threshold = gmap_rating_threshold ,
-                                                         booking_rating_threshold = booking_rating_threshold)  # get the closest randomN hotels
+                                                        admin_area ,
+                                                        gmap_rating_threshold = gmap_rating_threshold ,
+                                                        booking_rating_threshold = booking_rating_threshold)  # get the closest randomN hotels
+
         select_hotel = random.choices(select_hotel)[0] if select_hotel else None # random select 1 hotels
 
         if select_hotel and select_hotel not in best_hotels:
@@ -130,6 +132,8 @@ def find_best_hotels(*density_objects ,
             best_points.append(select_point)
 
         if loop_times > 300:
+
+            # TODO : 可能造成都找不到 hotel 的狀況!
             print('Too many loop too run , take a rest!') # 防呆 XDD
             break
 
