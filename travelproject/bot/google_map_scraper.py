@@ -1,5 +1,8 @@
 import time as t
 import googlemaps
+import configparser
+import os
+
 from bot.tools import find_english_char , get_digits , read_key ,set_env_attr
 from bot.constants import *
 
@@ -17,7 +20,11 @@ from bot.models import *
 
 def init_gmaps():
 
-    GOOGLE_API_KEY = read_key(KEY_PATH)
+    config = configparser.ConfigParser()
+    config_file = os.path.join(os.path.dirname(__file__),'config.ini')  # https://stackoverflow.com/questions/29426483/python3-configparser-keyerror-when-run-as-cronjob
+    config.read(config_file)
+
+    GOOGLE_API_KEY = config['secret']['google_map_api_key']
     maps = googlemaps.Client(GOOGLE_API_KEY)
 
     return maps
