@@ -279,7 +279,6 @@ def extract_informations_from_soup( date , soup_content, soup_pic, instant_infor
         # print(soup_content.prettify())
 
         hotel_instant_hrefs = soup_content.find('a', {'class': "js-sr-hotel-link hotel_name_link url"})['href'].strip("\n")  # get room_hrefs
-
         hotel_room_recommend = check_alive_or_not(soup_content.find('div', {'class': "room_link"}).find('strong'))
         if not hotel_room_recommend :
 
@@ -294,10 +293,6 @@ def extract_informations_from_soup( date , soup_content, soup_pic, instant_infor
         hotel_hot = check_alive_or_not(soup_content.find('div', {'class': 'rollover-s1 lastbooking'}),msg_if_none='快上網站訂房!').rstrip("\n").strip("\n")  # get the hot of hotels (instant information) 不是每個hotel都有此block !!!!!
         hotel_price = int(get_digits(str(soup_content.find('div', {'class': "bui-price-display__value"})).split('TWD')[1])[0])
 
-        '''if hotel_price == 1022:
-            print(
-                str(soup_content.find('div', {'class': "bui-price-display__value"}))
-            )'''
 
         # !!BUGS: price 部分有 /xa0124 encode 的問題
         return {
@@ -386,3 +381,4 @@ def get_detail_hotel_information(hotel_name=None, place_id=None, destination_adm
         detail_inform_dict = {}
 
     return inform_dict, detail_inform_dict
+
