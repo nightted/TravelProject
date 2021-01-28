@@ -55,53 +55,5 @@ def test_hotel_instant( test_len ):
 
 if __name__ == '__main__':
 
-    '''loc_center = '新竹火車站'
-    maps = init_gmaps()
-    #res = maps.geocode(loc_center)[0]
-    #location = res['geometry']['location']
-    location = {'lat': 24.8015877, 'lng': 120.9715883}
-
-    all = moving_store_scraper(
-                                keyword = '火車站',
-                                search_center = location,
-                                admin_area = 'Hsinchu',
-                                radius = 50,
-                                ranging = 0,
-                                next_page_token=None,
-                                objects=None,
-                                place_type='station',
-                                place_sub_type='station',
-                                mode="max_area"
-                            )
-
-    print("Finish Google search step!")
-
-    for p in all:
-        print(p.__dict__)'''
-
-
-    '''parkings = Place.objects.filter(admin_area='Tainan', place_sub_type='parking')
-    out , MAX_Rho, MAX_position = local_density(parkings , rating_dependent=False)
-    density = out[0]
-    print(density.shape)
-    Array_2d.create_array_object(name='parking' , arr = density , admin_area='Tainan')'''
-
-
-    print(Hotel.objects.all())
-
-
-'''class Resturant(Place):
-    nearby_hotel = models.ManyToManyField(Hotel, related_name='nearby_hotel')
-
-    @classmethod
-    def create_obj_by_dict(cls, **store_dict):
-        # basic attribute
-
-        admin_area = store_dict.get('admin_area')
-        filter_store_by_criteria(Hotel.objects.filter(admin_area=admin_area))
-
-        obj = cls(**store_dict)
-        if obj not in cls.objects.all():
-            obj.save()  # if not has same data in database , update it .
-        return obj'''
+    Line_client.objects.all().delete()
 
