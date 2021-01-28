@@ -11,8 +11,12 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 
 from pathlib import Path
+import configparser
+import os
+
 from bot.tools import read_key
-from bot.constants import SECRET_KEY_PATH
+from bot.constants import *
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,12 +26,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = read_key(SECRET_KEY_PATH)
+config = configparser.ConfigParser()
+config_file = os.path.join(os.path.dirname(__file__), 'setting_config.ini') # https://stackoverflow.com/questions/29426483/python3-configparser-keyerror-when-run-as-cronjob
+config.read(config_file)
+
+SECRET_KEY = config['secret']['django_secret_key']
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['']
+ALLOWED_HOSTS = ['e6508a9b5ab3.ngrok.io']
 
 
 # Application definition
