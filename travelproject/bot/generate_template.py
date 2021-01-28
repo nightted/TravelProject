@@ -18,9 +18,10 @@ def generate_rating_star(rating , font_size = None , font_color = None):
                   "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/review_gray_star_28.png"
                 }
 
+    true_rating = str(rating) + '星級' if rating else '無星等評比'
     text = {
              "type": "text",
-             "text": str(rating),
+             "text": true_rating,
              "size": font_size,
              "color": font_color,
              "margin": "md",
@@ -30,7 +31,7 @@ def generate_rating_star(rating , font_size = None , font_color = None):
     content_gold = [gold_star for i in range(int(rating))]
     content_gray = [gray_star for i in range(5-int(rating))]
 
-    return content_gold + content_gray + text
+    return content_gold + content_gray + [text]
 
 def generate_list_button(generate_list ,
                          temp_type ,
@@ -334,7 +335,7 @@ def button_template_generator(
                 "contents": [
                     {
                         "type": "text",
-                        "text": "喜歡鬧區還是安靜?",
+                        "text": "想吃甚麼食物?",
                         "size": "lg",
                         "style": "italic",
                         "weight": "bold",
@@ -344,10 +345,19 @@ def button_template_generator(
             },
             "footer": {
                 "type": "box",
-                "layout": "horizontal",
+                "layout": "vertical",
                 "contents": generate_list_button(generate_list=food,  # default options : Yes or No
-                                                 temp_type=temp_type
-                                                 )
+                                                 temp_type=temp_type) + [{
+                                                                            "type": "button",
+                                                                            "action": {
+                                                                                "type": "postback",
+                                                                                "label": '沒特別想吃的',
+                                                                                # combine the pre_postback_data with the current button data
+                                                                                "data": f"{temp_type}&None" # EX : location&花蓮_
+                                                                            }
+                                                                         }]
+
+
             }
         }
 
@@ -358,8 +368,8 @@ def button_template_generator(
             raise ValueError('No hotel atrributes assigned!')
 
         source_name = kwargs.get('source_name',None)
-        source_rating = kwargs.get('source_rating',None)
-        star = kwargs.get('star',None)
+        source_rating = kwargs.get('source_rating') if kwargs.get('source_rating') else '無評分'
+        star = kwargs.get('star') if kwargs.get('star') else 0
         pic_link = kwargs.get('pic_link',None)
 
 
@@ -389,7 +399,7 @@ def button_template_generator(
                               },
                               {
                                 "type": "text",
-                                "text": source_rating + '星級',
+                                "text": 'booking 上評分 : ' + str(source_rating) ,
                                 "weight": "bold",
                                 "size": "sm",
                                 "wrap": True
@@ -405,6 +415,7 @@ def button_template_generator(
               },
 
               "footer": {
+
                             "type": "box",
                             "layout": "vertical",
                             "spacing": "sm",
@@ -415,10 +426,10 @@ def button_template_generator(
                                     "height": "sm",
                                     "action": {
                                         "type": "postback",
-                                        "label": "快看看你選的日期房況!",
+                                        "label": "看當天房況!",
                                         # 這邊 postback data 是要找出 filtered Hotel instance ,
                                         # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
-                                        "data": f"{temp_type}&{source_name}",
+                                        "data": f"{temp_type}&HotelRecommend_{source_name}",
                                     }
                                 },
                                 {
@@ -427,17 +438,102 @@ def button_template_generator(
                                     "height": "sm",
                                     "action": {
                                         "type": "postback",
-                                        "label": "附近有什麼好吃的咧?",
-                                        "data": f"{temp_type}&food_recommend" # special change the header name
+                                        "label": "看附近美食?",
+                                        "data": f"{temp_type}&FoodRecommend_{source_name}"  # special change the header name
+                                    }
+                                }
+                            ],
+
+                            "flex": 0
+              }
+
+
+
+        }
+
+    elif temp_type == 'food_recommend':
+
+        # Those property all got from selected hotels attributes
+        if not kwargs:
+            raise ValueError('No hotel atrributes assigned!')
+
+        no_pic_url = 'https://lh3.googleusercontent.com/proxy/AgokJAXz_DxQLSWuEHpe5vHj0i1LzdoFJ_iBFjytNm708vp1plRL9LmAWLKV53TZbQz2dg87-9Hca0baV4fb1AgZ10xvVsj_lfLE'
+        result_url = kwargs.get('result_url')
+        preview_pic_url = kwargs.get('preview_pic_url')
+        name = kwargs.get('name')
+        rating = kwargs.get('rating')
+
+
+        button = {
+              "type": "bubble",
+
+              "size": "micro",
+
+              "hero": {
+                            "type": "image",
+                            "url": preview_pic_url if preview_pic_url else no_pic_url,
+                            "size": "full",
+                            "aspectMode": "cover",
+                            "aspectRatio": "320:213"
+              },
+
+              "body": {
+                            "type": "box",
+                            "layout": "vertical",
+                            "contents": [
+                              {
+                                "type": "text",
+                                "text": name,
+                                "weight": "bold",
+                                "size": "sm",
+                                "wrap": True
+                              },
+                              {
+                                "type": "text",
+                                "text": 'Google 上評分 : ' + str(rating) ,
+                                "weight": "bold",
+                                "size": "sm",
+                                "wrap": True
+                              }
+                            ],
+                            "spacing": "sm",
+                            "paddingAll": "13px"
+              },
+
+              "footer": {
+
+                            "type": "box",
+                            "layout": "vertical",
+                            "spacing": "sm",
+                            "contents": [
+                                {
+                                    "type": "button",
+                                    "style": "link",
+                                    "height": "sm",
+                                    "action": {
+                                        "type": "postback",
+                                        "label": "看其他飯店?",
+                                        # 這邊 postback data 是要找出 filtered Hotel instance ,
+                                        # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
+                                        "data": f"{temp_type}&return_recommend",
                                     }
                                 },
                                 {
-                                    "type": "spacer",
-                                    "size": "sm"
+                                    "type": "button",
+                                    "style": "link",
+                                    "height": "sm",
+                                    "action": {
+                                        "type": "uri",
+                                        "label": "看食記!",
+                                        "uri": result_url # special change the header name
+                                    }
                                 }
                             ],
+
                             "flex": 0
               }
+
+
 
         }
 
@@ -454,11 +550,13 @@ def button_template_generator(
         room_remainings = kwargs.get('room_remainings',None)
         queried_date = kwargs.get('queried_date',None)
 
-        instant_hrefs = kwargs.get('instant_hrefs',None)
+        instant_hrefs = kwargs.get('instant_hrefs',None) # TODO : 這邊還是有bug!
         instant_hrefs = BOOKING_URL + instant_hrefs if instant_hrefs else BASE_BOOKING_URL
         instant_hrefs = instant_hrefs[:-27] + instant_hrefs[-26:] # 去除 "\n" XD
 
         pic_link = kwargs.get('pic_link', None)
+
+        print(f' DEBUG in template : {instant_hrefs}')
 
         button = {
             "type": "bubble",
@@ -547,6 +645,7 @@ def button_template_generator(
                         }
                     }
                 ],
+
                 "flex": 0
             }
 
