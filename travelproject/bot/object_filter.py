@@ -16,7 +16,7 @@ def filter_by_criteria(obj, center, criteria, scan_shape='rectan'):
     """
 
     # Judge if whether it's hotel object,
-    # if so , check room_source exist or not ; if not , set as True (belong to restaurant or con)
+    # if so , check room_source exist or not ; if not , set as True (belong to restaurant or con or other type place)
     if hasattr(obj, 'room_source'):
         selectable = False if not getattr(obj, 'room_source') else True  # for handling hotel type store , TODO (備忘): 這裡決定是否要選 booking room_source
     else:
