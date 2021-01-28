@@ -471,7 +471,7 @@ def button_template_generator(
 
               "hero": {
                             "type": "image",
-                            "url": preview_pic_url if preview_pic_url else no_pic_url,
+                            "url": 'http://pic.pimg.tw/oxygen0301/1402290190-4016645192_m.jpg',
                             "size": "full",
                             "aspectMode": "cover",
                             "aspectRatio": "320:213"
@@ -650,6 +650,9 @@ def button_template_generator(
             }
 
         }
+
+    if not button:
+        raise ValueError('No suitable template type exist!!')
 
     return button
 
