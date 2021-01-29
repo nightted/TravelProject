@@ -3,9 +3,9 @@ import configparser
 import os
 import random
 
+from bot.async_scraper import async_get_search_result_by_resturant
 from bot.models import *
 from bot.recommend import find_best_hotels
-from bot.google_search_and_show import get_search_result_by_resturant
 from bot.constants import ACCESS_TOKEN_PATH , SECRET_PATH , center_of_city
 from bot.generate_template import button_template_generator , carousel_template_generator
 from bot.string_comparing import find_common_word_2str
@@ -325,78 +325,66 @@ def handle_postback(event):
 
 
     # 這邊處理兩種 postback button (本來是 message or postback button 卻誤觸更先前的 postback button) 誤觸狀況 :
-    # Firstly, check the type header from postback is == from client.obj
-    if type_header == client_obj.type_header:
+    # 目前作法 : 直接倒退回誤觸的那個 stage , 重新get資訊.
+    # 這麼做的好處蠻直觀 , 如果不甚滿意先前的選擇 , 可直覺地拉回去重選 ~
+    if type_header != client_obj.type_header:
 
-        # BREAK POINT for 'silence' and 'hotel_name_input'
-        # if NeedRecommendOrNot == "N" or food type , "fork" to return message
-        if (type_header == 'NeedRecommendOrNot' and pre_postback_data == "N") or type_header == "food":
-
-            save_attr_to_database(type_header , client_obj , pre_postback_data)
-            return_message(event,
-                           client_obj=client_obj,
-                           type_header=type_header)
-
-        # If it goes to the 'leaf' of the selection process ,
-        # choose to return to 'more recommend' or 'beginning of search'
-        elif type_header in ['instant','food_recommend']:
-
-            '''
-             Not saving attrs here!
-            '''
-
-            # for returning to recommend list
-            if 'return_recommend' in pre_postback_data:
-
-                # if it's not recommend mode originally , keep going collecting user data.
-                if 'recommend' not in client_obj.type_record:
-                    type_header = type_header_backward(client_obj, target_type='num_rooms')
-                else:
-                    type_header = type_header_backward(client_obj, target_type='sightseeing')
-                other_msg = ''
-
-            # for returning to beginning of search
-            elif 'return_search' in pre_postback_data:
-
-                type_header = type_header_backward(client_obj, target_type='entering_message')
-                other_msg = '請重新選擇您要去的縣市~'
+        _ = type_header_backward(client_obj , type_header)
 
 
-            return_postback(event,
-                            client_obj=client_obj,
-                            type_header=type_header,
-                            other_msg=other_msg)
+    # BREAK POINT for 'silence' and 'hotel_name_input'
+    # if NeedRecommendOrNot == "N" or food type , "fork" to return message
+    if (type_header == 'NeedRecommendOrNot' and pre_postback_data == "N") or type_header == "food":
 
-        # else , directly return postback .
-        else:
+        save_attr_to_database(type_header , client_obj , pre_postback_data)
+        return_message(event,
+                       client_obj=client_obj,
+                       type_header=type_header)
 
-            # [Exception] because the BREAK POINT 'instant' and 'food_recommend' is both return the same postback
-            # So need not to do further judgement in this place.
+    # If it goes to the 'leaf' of the selection process ,
+    # choose to return to 'more recommend' or 'beginning of search'
+    elif type_header in ['instant','food_recommend']:
 
-            save_attr_to_database(type_header, client_obj, pre_postback_data)
-            return_postback(event,
-                            client_obj=client_obj,
-                            type_header=type_header) # Do reply function
+        '''
+         Not saving attrs here!
+        '''
 
+        # for returning to recommend list
+        if 'return_recommend' in pre_postback_data:
+
+            # if it's not recommend mode originally , keep going collecting user data.
+            if 'recommend' not in client_obj.type_record:
+                type_header = type_header_backward(client_obj, target_type='num_rooms')
+            else:
+                type_header = type_header_backward(client_obj, target_type='sightseeing')
+            other_msg = ''
+
+        # for returning to beginning of search
+        elif 'return_search' in pre_postback_data:
+
+            type_header = type_header_backward(client_obj, target_type='entering_message')
+            other_msg = '請重新選擇您要去的縣市~'
+
+
+        return_postback(event,
+                        client_obj=client_obj,
+                        type_header=type_header,
+                        other_msg=other_msg)
+
+    # else , directly return postback .
     else:
 
-        # TODO : 目前有個 bug 是 , client.type_header 在誤觸的 type_header 的 "後面" XDD
+        # [Exception] because the BREAK POINT 'instant' and 'food_recommend' is both return the same postback
+        # So need not to do further judgement in this place.
 
-        # Secondly , if not the same type between type header from postback and from client.obj
-        # return type_header for "1 stage" , re-send postback(or message) event
+        save_attr_to_database(type_header, client_obj, pre_postback_data)
+        return_postback(event,
+                        client_obj=client_obj,
+                        type_header=type_header) # Do reply function
 
-        now_type_header = client_obj.type_header # 注意 , 這裡要用"目前的" type 來進行判斷要 send message 還是 postback
-        pre_type_header = type_header_backward(client_obj) # 確認完後 , 一樣倒退一格 type and re-send.
 
-        # And then to check what type actually it is.
-        if now_type_header in postback_accept_type:
-            return_postback(event,
-                           client_obj=client_obj,
-                           type_header=pre_type_header)
-        else:
-            return_message(event,
-                           client_obj=client_obj,
-                           type_header=pre_type_header)
+    # TODO : 目前有個 bug 是 , client.type_header 在誤觸的 type_header 的 "後面" XDD
+
 
 
 
@@ -538,6 +526,7 @@ def get_hotel_instance(client_obj):
     pic_link = getattr(selected_hotel , 'pic_link') # TODO : 這邊注意會抓到沒 pic 的 non-booking hotel!
 
     dict_list = []
+    #print([type(obj.queried_date) for obj in instant_objs])
     for ins_obj in sorted(instant_objs , key = lambda x : x.queried_date):
         ins_dict = ins_obj.__dict__
         ins_dict.update({'pic_link': pic_link})
@@ -618,7 +607,7 @@ def type_header_backward(client_obj , target_type = None):
 
 def get_nearby_resturant_search_result_by_hotel(hotel_name , 
                                                 rating_threshold = 4.0 , 
-                                                RandomChoose = 3):
+                                                RandomChoose = 5):
 
     try:
         select_hotel = Hotel.objects.filter(source_name = hotel_name)
@@ -627,23 +616,24 @@ def get_nearby_resturant_search_result_by_hotel(hotel_name ,
         raise NameError('No such hotel exist!')
 
     nearby_resturant = select_hotel.nearby_resturant.all()
-    nearby_resturant = [ res_obj for res_obj in nearby_resturant if res_obj.rating > rating_threshold and res_obj.place_sub_type != 'con']
+
+    nearby_resturants = []
+    for res_obj in nearby_resturant:
+        if res_obj.rating > rating_threshold and \
+            res_obj.place_sub_type != 'con' and \
+            res_obj not in nearby_resturants:
+
+            nearby_resturants.append(res_obj)
 
 
     if len(nearby_resturant) >= RandomChoose:
-        select_resturant = random.choices(nearby_resturant , k = RandomChoose)
+        select_resturant = random.choices(nearby_resturants , k = RandomChoose)
     else:
-        select_resturant = nearby_resturant
+        select_resturant = nearby_resturants
 
     print(f'DEBUG select_resturant : {select_resturant}')
 
-    dict_list = []
-    for resturant in select_resturant:
-        result_url , preview_pic_url = get_search_result_by_resturant(resturant.name)
-        dict_list.append({'result_url':result_url ,
-                       'preview_pic_url':preview_pic_url ,
-                       'name':resturant.name ,
-                       'rating':resturant.rating})
+    dict_list = async_get_search_result_by_resturant(select_resturant)
 
     print(f'DEBUG dict_list : {dict_list}')
 
