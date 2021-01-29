@@ -213,7 +213,7 @@ class Hotel(Place):
 
                 # if the day in range is before today , re-range day_range
                 if day_to_datetime(queried_date , format='datetime') - datetime.timedelta(days=day_range) < datetime.datetime.now():
-                    day_range = (day_to_datetime(queried_date , format='datetime') - datetime.now()).days
+                    day_range = (day_to_datetime(queried_date , format='datetime') - datetime.datetime.now()).days
 
                 # try to access exist instant data from SQL
                 exist_objs , unfinished_queried_date  = [] , []
