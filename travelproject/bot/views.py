@@ -21,8 +21,9 @@ from linebot.exceptions import (
 )
 from linebot.models import (
 
-    MessageEvent, # normal message reply event
-    PostbackEvent, # message reply event from PostbackTemplateAction
+    MessageEvent, # message  event
+    PostbackEvent, # postback event
+    FollowEvent, # follow event
 
     # Receive message
     TextMessage ,
@@ -30,8 +31,8 @@ from linebot.models import (
 
     # Send messages
     TextSendMessage, # send text reply
-    TemplateSendMessage, # send template reply
     FlexSendMessage, # send flex-template reply
+    LocationSendMessage, # send location map
 
     # Template of message
     ButtonsTemplate, # reply template of button
@@ -60,7 +61,9 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN) # set line bot api
 handler = WebhookHandler(LINE_CHANNEL_SECRET) # set handler
 
 # Default greeting message:
+follow_message = '歡迎使用旅遊推薦 APP ~ ,請任意輸入文字以開始搜尋 (要重新查詢可隨時輸入 "重新搜尋" !) '
 greeting_message = '歡迎使用旅遊推薦 APP ~ (要重新查詢可隨時輸入 "重新搜尋" !)' # greeting words
+
 
 # Priority of stage process:
 priority = ['entering_message' ,
@@ -124,6 +127,13 @@ def callback(request):
 # 1. 首先 event 進來 server, handle_ function 會先 parse event message and data , 並將 data store 進 database ;
 # 2. 接著判別是哪種 type 的 event , 並利用 reply_ function 選擇要回復的訊息 or 要回復的 template type , 進行回傳 client
 # 3. 最後 client 接收到訊息 or template , 再進行回覆 server (loop back to 1.)
+@handler.add(FollowEvent)
+def handle_follow(event):
+
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=follow_message)
+    )
 
 @handler.add(MessageEvent, message=[TextMessage , StickerMessage])
 def handle_message(event):
@@ -239,6 +249,7 @@ def handle_message(event):
                             client_obj=client_obj,
                             type_header=type_header)
 
+# return text message
 def return_message(event,
                    client_obj,
                    type_header,
@@ -324,12 +335,26 @@ def handle_postback(event):
         pre_postback_data = event.postback.params['date'] if type_header == 'queried_date' else event.postback.data.split('&')[1]  # get data from postback data
 
 
-    # 這邊處理兩種 postback button (本來是 message or postback button 卻誤觸更先前的 postback button) 誤觸狀況 :
-    # 目前作法 : 直接倒退回誤觸的那個 stage , 重新get資訊.
-    # 這麼做的好處蠻直觀 , 如果不甚滿意先前的選擇 , 可直覺地拉回去重選 ~
+    # 這邊處理幾種 postback button 誤觸狀況
+    # 1. 目前是要回 message , 卻誤觸更先前的 postback button
+    # 2. 要按目前的 postback button , 卻誤觸更先前的 postback button
+    # 3. 為1,2的延伸 , 倒回誤觸的 postback stage(見1,2解法)後 , 又誤觸了"誤觸前"原本應該要按的 postback button
+    #    EX : 我原本在 recommend , 按到 num_rooms ; 那現在倒回 num_rooms 後 , 我又按到 recommend button XDD
     if type_header != client_obj.type_header:
 
-        _ = type_header_backward(client_obj , type_header)
+        # 解決 1 ,2 的作法 (type header 在 client_obj.type_header 之前):
+        # 直接倒退回誤觸的 stage (type header) , 重新get資訊.
+        # 這麼做的好處蠻直觀 , 如果不甚滿意先前的選擇 , 可直覺地拉回去重選 ~
+        if type_header in client_obj.type_record:
+            _ = type_header_backward(client_obj , type_header)
+
+        # 解決 3 的作法 (type header 在 client_obj.type_header 之後):
+        # 這裡處理手法類似給 button 但 send message 的處置 => 於目前的stage(client_obj.type_header)直接倒回 1 stage 重 send .
+        else:
+            type_header = type_header_backward(client_obj)
+            return_postback(event,
+                            client_obj=client_obj,
+                            type_header=type_header)
 
 
     # BREAK POINT for 'silence' and 'hotel_name_input'
@@ -340,6 +365,22 @@ def handle_postback(event):
         return_message(event,
                        client_obj=client_obj,
                        type_header=type_header)
+
+
+    elif type_header == 'recommend':
+
+        action_type = pre_postback_data.split('_')[0]  # extract action
+        save_attr_to_database(type_header, client_obj, pre_postback_data)
+
+        if action_type == 'MapShow':
+            return_location(event,
+                            client_obj=client_obj,
+                            type_header=type_header)
+        else:
+            return_postback(event,
+                            client_obj=client_obj,
+                            type_header=type_header)
+
 
     # If it goes to the 'leaf' of the selection process ,
     # choose to return to 'more recommend' or 'beginning of search'
@@ -354,7 +395,7 @@ def handle_postback(event):
 
             # if it's not recommend mode originally , keep going collecting user data.
             if 'recommend' not in client_obj.type_record:
-                type_header = type_header_backward(client_obj, target_type='num_rooms')
+                type_header = type_header_backward(client_obj, target_type='num_people')
             else:
                 type_header = type_header_backward(client_obj, target_type='sightseeing')
             other_msg = ''
@@ -383,11 +424,9 @@ def handle_postback(event):
                         type_header=type_header) # Do reply function
 
 
-    # TODO : 目前有個 bug 是 , client.type_header 在誤觸的 type_header 的 "後面" XDD
+    # TODO : 新增 Location  !!
 
-
-
-
+# return postback (template) message
 def return_postback(event,
                     client_obj, # 可直接在 reply function 中取用 client 即時 data !
                     type_header,
@@ -433,7 +472,7 @@ def return_postback(event,
     # then use date ,rooms and people as input to object.construct_instant_attr
     elif next_type_header == 'food_recommend':
 
-        hotel_name = client_obj.recommend.split('_')[1] # extract hotel source name
+        hotel_name = client_obj.recommend.split('_')[1]
         dict_list = get_nearby_resturant_search_result_by_hotel(hotel_name)
         contents = carousel_template_generator(temp_type=next_type_header,
                                                dict_list=dict_list)
@@ -474,6 +513,43 @@ def return_postback(event,
         event.reply_token,
         reply_action
     )
+
+# return location message
+def return_location(event,
+                    client_obj, # 可直接在 reply function 中取用 client 即時 data !
+                    type_header,
+                    **other_msg):
+
+    if type_header == 'recommend':
+
+        place_name = client_obj.recommend.split('_')[1]
+        lat , lng , address = get_latlng_address(place_name)
+
+
+    line_bot_api.reply_message(
+        event.reply_token,
+        LocationSendMessage(
+            title='Location',
+            address=address,
+            latitude=lat,
+            longitude=lng
+        )
+    )
+
+
+
+def get_latlng_address(place_name):
+
+    place_object = Place.objects.filter(name = place_name)
+    if not place_object:
+        place_object = Hotel.objects.filter(source_name = place_name) # if hotel objects
+
+    place_object = place_object[0]
+    lat = getattr(place_object , 'lat')
+    lng = getattr(place_object, 'lng')
+    address = getattr(place_object, 'address')
+
+    return lat , lng , address
 
 # base method to get recommend hotels
 def get_recommend_hotels(client_obj):
@@ -607,7 +683,7 @@ def type_header_backward(client_obj , target_type = None):
 
 def get_nearby_resturant_search_result_by_hotel(hotel_name , 
                                                 rating_threshold = 4.0 , 
-                                                RandomChoose = 5):
+                                                RandomChoose = 4):
 
     try:
         select_hotel = Hotel.objects.filter(source_name = hotel_name)
@@ -626,6 +702,9 @@ def get_nearby_resturant_search_result_by_hotel(hotel_name ,
             nearby_resturants.append(res_obj)
 
 
+    # TODO : 此處有重複抓取的 BUGS !!!
+
+
     if len(nearby_resturant) >= RandomChoose:
         select_resturant = random.choices(nearby_resturants , k = RandomChoose)
     else:
@@ -634,8 +713,6 @@ def get_nearby_resturant_search_result_by_hotel(hotel_name ,
     print(f'DEBUG select_resturant : {select_resturant}')
 
     dict_list = async_get_search_result_by_resturant(select_resturant)
-
-    print(f'DEBUG dict_list : {dict_list}')
 
     return dict_list
 
