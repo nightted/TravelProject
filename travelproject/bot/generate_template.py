@@ -367,7 +367,7 @@ def button_template_generator(
         if not kwargs:
             raise ValueError('No hotel atrributes assigned!')
 
-        source_name = kwargs.get('source_name',None)
+        place_name = kwargs.get('source_name',None) if kwargs.get('source_name',None) else kwargs.get('name',None)
         source_rating = kwargs.get('source_rating') if kwargs.get('source_rating') else '無評分'
         star = kwargs.get('star') if kwargs.get('star') else 0
         pic_link = kwargs.get('pic_link',None)
@@ -392,7 +392,7 @@ def button_template_generator(
                             "contents": [
                               {
                                 "type": "text",
-                                "text": source_name,
+                                "text": place_name,
                                 "weight": "bold",
                                 "size": "sm",
                                 "wrap": True
@@ -429,7 +429,7 @@ def button_template_generator(
                                         "label": "看當天房況!",
                                         # 這邊 postback data 是要找出 filtered Hotel instance ,
                                         # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
-                                        "data": f"{temp_type}&HotelRecommend_{source_name}",
+                                        "data": f"{temp_type}&HotelRecommend_{place_name}",
                                     }
                                 },
                                 {
@@ -439,7 +439,18 @@ def button_template_generator(
                                     "action": {
                                         "type": "postback",
                                         "label": "看附近美食?",
-                                        "data": f"{temp_type}&FoodRecommend_{source_name}"  # special change the header name
+                                        "data": f"{temp_type}&FoodRecommend_{place_name}"  # special change the header name
+                                    }
+                                },
+                                {
+                                    "type": "button",
+                                    "style": "link",
+                                    "height": "sm",
+                                    "action": {
+                                        "type": "postback",
+                                        "label": "看地圖?",
+                                        "data": f"{temp_type}&MapShow_{place_name}"
+                                        # special change the header name
                                     }
                                 }
                             ],
@@ -471,7 +482,7 @@ def button_template_generator(
 
               "hero": {
                             "type": "image",
-                            "url": 'http://pic.pimg.tw/oxygen0301/1402290190-4016645192_m.jpg',
+                            "url": preview_pic_url if preview_pic_url and preview_pic_url[:5] == 'https'  else no_pic_url,
                             "size": "full",
                             "aspectMode": "cover",
                             "aspectRatio": "320:213"
@@ -553,6 +564,7 @@ def button_template_generator(
         instant_hrefs = kwargs.get('instant_hrefs',None) # TODO : 這邊還是有bug!
         instant_hrefs = BOOKING_URL + instant_hrefs if instant_hrefs else BASE_BOOKING_URL
         instant_hrefs = instant_hrefs[:-27] + instant_hrefs[-26:] # 去除 "\n" XD
+        # TODO : 這邊還是有 bug XDD
 
         pic_link = kwargs.get('pic_link', None)
 
@@ -618,7 +630,7 @@ def button_template_generator(
                     "height": "sm",
                     "action": {
                         "type": "uri",
-                        "label": "快上網站訂房!!!",
+                        "label": "上網站訂房!",
                         "uri": instant_hrefs
                         }
 
@@ -630,7 +642,7 @@ def button_template_generator(
                         "height": "sm",
                         "action": {
                             "type": "postback",
-                            "label": "想看看其他的推薦?",
+                            "label": "其他推薦飯店?",
                             "data": f'{temp_type}&return_recommend'
                         }
                     },
