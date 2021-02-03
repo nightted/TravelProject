@@ -3,8 +3,9 @@ from bot.tools import *
 from bot.density_analysis import local_density
 from bot.constants import *
 
+
 set_env_attr()  # set env attrs
-from linebot.models import *
+from bot.models import *
 
 # City prop.
 admin_area = 'Hualien'
@@ -32,6 +33,8 @@ if __name__ == '__main__':
         raise NameError('No admin_area assigned !!!')
 
     # Firstly , grab all type stores and storage into store_objects_all
+    print("Now in stage 1 ~ grab all type stores and storage into store_objects_all  ")
+
     objects = {}
     for keyword , store_param  in store_types.items():
         objs = moving_store_scraper( keyword = keyword   ,
@@ -55,12 +58,16 @@ if __name__ == '__main__':
 
 
     # Secondly , to compare the name of hotels between booking.com and gmaps and filter
+    print("Now in stage 2 ~ compare the name of hotels between booking.com and gmaps and filter ")
+
     all_hotel_objects = Hotel.objects.filter(admin_area = admin_area)
     for hotel in all_hotel_objects:
         hotel.main_construct_step()
 
 
     # Thirdly , construct density data of all type of stores
+    print("Now in stage 3 ~ construct density data of all type of stores ")
+
     for _ , store_param in  store_types.items():
         data_objects = Place.objects.filter(place_sub_type = store_param['place_sub_type'])
         output , max_rho , max_pos  = local_density(data_objects,
