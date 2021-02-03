@@ -434,10 +434,12 @@ class Line_client(models.Model):
     # user request
     admin_area = models.CharField(max_length=20, null=True ,blank=True ,default=None)
     queried_date = models.CharField(max_length=20, null=True ,blank=True ,default=None)
+    FoodOrHotel = models.CharField(max_length=20, null=True ,blank=True ,default=None)
     num_rooms = models.IntegerField(null=True ,blank=True ,default=None)
     num_people = models.IntegerField(null=True ,blank=True ,default=None)
     NeedRecommendOrNot = models.CharField(max_length=20, null=True ,blank=True ,default=None)
     hotel_name_input = models.CharField(max_length=100, null=True, blank=True, default=None)
+    place_name_input = models.CharField(max_length=100, null=True, blank=True, default=None)
     silence = models.CharField(max_length=20, null=True ,blank=True ,default=None)
     food = models.CharField(max_length=20, null=True ,blank=True ,default=None)
     sightseeing = models.CharField(max_length=20, null=True ,blank=True ,default=None)
