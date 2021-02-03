@@ -6,9 +6,11 @@ import random
 from bot.async_scraper import async_get_search_result_by_resturant
 from bot.models import *
 from bot.recommend import find_best_hotels
-from bot.constants import ACCESS_TOKEN_PATH , SECRET_PATH , center_of_city
+from bot.constants import center_of_city
 from bot.generate_template import button_template_generator , carousel_template_generator
 from bot.string_comparing import find_common_word_2str
+from bot.density_analysis import get_place_latlng_by_gmaps
+from bot.object_filter import filter_store_by_criteria
 
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
@@ -68,6 +70,7 @@ greeting_message = '歡迎使用旅遊推薦 APP ~ (要重新查詢可隨時輸�
 # Priority of stage process:
 priority = ['entering_message' ,
             'admin_area' ,
+            'FoodOrHotel' ,
             'queried_date' ,
             'num_rooms' ,
             'num_people' ,
@@ -76,26 +79,29 @@ priority = ['entering_message' ,
             'food' ,
             'sightseeing' ,
             'recommend' ,
-            'instant'
             ] # indicate the priority of process ; and also assigns the template type in postback message
 
 next_type_hash = {pre : after for pre , after  in zip(priority[:len(priority)-1] , priority[1:len(priority)])}
-next_type_hash.update({'hotel_name_input' : 'instant'}) # update for BREAK POINT 'NeedRecommendOrNot' fork.
+next_type_hash.update({'hotel_name_input' : 'instant' ,
+                       'place_name_input' : 'food_recommend_place' }) # update for BREAK POINT 'NeedRecommendOrNot' fork.
 
 # acceptable type define
 message_accept_type = ['entering_message' ,
                        'sightseeing' ,
-                       'hotel_name_input']
+                       'hotel_name_input' ,
+                       'place_name_input' ,
+                       'food_recommend_place']
 
 postback_accept_type = ['admin_area' ,
                         'queried_date' ,
+                        'FoodOrHotel' ,
                         'num_rooms' ,
                         'num_people' ,
                         'NeedRecommendOrNot' ,
                         'silence' ,
                         'food' ,
-                        'recommend',
-                        'food_recommend' ,
+                        'recommend' ,
+                        'food_recommend_hotel' ,
                         'instant']
 
 @csrf_exempt
@@ -165,7 +171,7 @@ def handle_message(event):
 
 
     msg = event.message.text # parse messages from event object
-    if msg in ['重新搜尋','重新選擇','重選']:
+    if msg in ['重新搜尋','重新選擇','重選','重搜','重新']:
 
         # in every type stage , every time you key in "重新搜尋" or "re-search" ,
         # it will return to beginning of search
@@ -197,6 +203,34 @@ def handle_message(event):
                                 type_header = type_header ,
                                 other_msg = other_msg)
 
+
+            # in self-preparing 'place_name_input' stage , save attr and transfer to return postback
+            elif type_header == 'place_name_input' :
+
+                # TODO : 這裡可多一個 place 是否在 admin area 內的判斷!
+                place_latlng = get_place_latlng_by_gmaps(msg)
+                lng , lat = place_latlng[0] , place_latlng[1]
+                lat_range = center_of_city[client_obj.admin_area]['city_range']['lat']
+                lng_range = center_of_city[client_obj.admin_area]['city_range']['lng']
+                in_range = lng_range[0]<=lng<=lng_range[1] and lat_range[0]<=lat<=lat_range[1]
+
+                if in_range:
+                    save_attr_to_database(type_header, client_obj, msg)
+                    return_postback(event,
+                                    client_obj=client_obj,
+                                    type_header=type_header)
+                else:
+                    '''
+                     Not saving attrs here!
+                    '''
+                    type_header = type_header_backward(client_obj)
+                    other_msg = f'您的給的位置不在 {client_obj.admin_area} 區域內喔! 請重新輸入位置~'
+                    return_message(event,
+                                   client_obj=client_obj,
+                                   type_header=type_header,
+                                   other_msg=other_msg)
+
+
             # in self-preparing 'hotel_name_input' stage , check the input name exist or not
             elif type_header == 'hotel_name_input' :
 
@@ -210,7 +244,6 @@ def handle_message(event):
                                     client_obj=client_obj,
                                     type_header=type_header)
                 else:
-
                     '''
                      Not saving attrs here!
                     '''
@@ -220,18 +253,6 @@ def handle_message(event):
                                    client_obj=client_obj,
                                    type_header=type_header,
                                    other_msg = other_msg)
-
-            # in 'food_recommend' stage and want to return back to 'recommend'
-            elif type_header == 'food_recommend' and '返回推薦' in msg:
-
-                '''
-                 Not saving attrs here!
-                '''
-
-                type_header = type_header_backward(client_obj , target_type='sightseeing') # for food recommend stage , return to hotel recommend stage
-                return_postback(event,
-                                client_obj=client_obj,
-                                type_header=type_header)
 
 
             else:
@@ -266,24 +287,34 @@ def return_message(event,
     contents = None
 
     # special handle for BREAK POINT "NeedRecommendOrNot" ; if got "N" in 'NeedRecommendOrNot' stage , "fork" to 'hotel_name_input'
-    if type_header == 'NeedRecommendOrNot' and getattr(client_obj , type_header) == 'N':
+
+    if type_header == 'FoodOrHotel' and getattr(client_obj , type_header) == '找美食':
+        next_type_header = client_obj.type_header = 'place_name_input'
+        client_obj.type_record.append('place_name_input') # record the "path" of type
+
+    elif type_header == 'NeedRecommendOrNot' and getattr(client_obj , type_header) == 'N':
         next_type_header = client_obj.type_header = 'hotel_name_input'
         client_obj.type_record.append('hotel_name_input') # record the "path" of type
 
     else:
         next_type_header = client_obj.type_header = next_type_hash.get(type_header)
         client_obj.type_record.append(next_type_hash.get(type_header))
+
     client_obj.save()
 
 
-    print('DEBUG return_message client_obj.type_record ', client_obj.type_record)
+
+    print('DEBUG return_message next_type_header & client_obj.type_record ', next_type_header , client_obj.type_record)
+
 
 
     if not next_type_header:
         raise ValueError('No next type exist!!!')
 
+    if next_type_header == 'place_name_input':
+        contents = '請輸入你所在位置(例如:民宿,飯店,景點..)或地址~ , 輸入完成後請靜待5~8秒鐘等待資料抓取~ (如沒回應 , 請再輸入一次!)'
 
-    if next_type_header == 'hotel_name_input':
+    elif next_type_header == 'hotel_name_input':
         contents = '請輸入你想住的飯店~ , 輸入完成後請靜待3~5秒鐘等待資料抓取~ (如沒回應 , 請再輸入一次!)'
 
     elif next_type_header == 'sightseeing':
@@ -297,7 +328,6 @@ def return_message(event,
     if other_msg:
         for _ , msg in other_msg.items():
             if msg:
-                msg += '\n'
                 reply_action.insert(0, TextSendMessage(text=msg))  # insert other msg in front of button reply
 
     line_bot_api.reply_message(
@@ -340,6 +370,8 @@ def handle_postback(event):
     # 2. 要按目前的 postback button , 卻誤觸更先前的 postback button
     # 3. 為1,2的延伸 , 倒回誤觸的 postback stage(見1,2解法)後 , 又誤觸了"誤觸前"原本應該要按的 postback button
     #    EX : 我原本在 recommend , 按到 num_rooms ; 那現在倒回 num_rooms 後 , 我又按到 recommend button XDD
+
+
     if type_header != client_obj.type_header:
 
         # 解決 1 ,2 的作法 (type header 在 client_obj.type_header 之前):
@@ -357,9 +389,14 @@ def handle_postback(event):
                             type_header=type_header)
 
 
-    # BREAK POINT for 'silence' and 'hotel_name_input'
-    # if NeedRecommendOrNot == "N" or food type , "fork" to return message
-    if (type_header == 'NeedRecommendOrNot' and pre_postback_data == "N") or type_header == "food":
+
+    # BREAK POINT 1. 'datetime' and 'place_name_input' , if 'FoodOrHotel' == "N"
+    # BREAK POINT 2. 'silence' and 'hotel_name_input' , if NeedRecommendOrNot == "N"
+    # POSTBACK -> MESSAGE : if 'food' type (next is 'sightseeing')
+    # "fork" to return message
+    if (type_header == 'NeedRecommendOrNot' and pre_postback_data == "N") or \
+       (type_header == 'FoodOrHotel' and pre_postback_data == "找美食") or \
+        type_header == "food":
 
         save_attr_to_database(type_header , client_obj , pre_postback_data)
         return_message(event,
@@ -384,7 +421,33 @@ def handle_postback(event):
 
     # If it goes to the 'leaf' of the selection process ,
     # choose to return to 'more recommend' or 'beginning of search'
-    elif type_header in ['instant','food_recommend']:
+
+    elif type_header == 'food_recommend_place':
+
+        '''
+         Not saving attrs here!
+        '''
+
+        # for returning tp re-search food
+        if 'return_PlaceNameInput' in pre_postback_data:
+
+            type_header = type_header_backward(client_obj, target_type='FoodOrHotel')
+            return_message(event,
+                           client_obj=client_obj,
+                           type_header=type_header)
+
+        # for returning to find food or find hotel
+        elif 'return_FoodOrHotel' in pre_postback_data:
+
+            type_header = type_header_backward(client_obj, target_type='admin_area')
+            other_msg = '請重新選擇您要找飯店還是找美食~'
+            return_postback(event,
+                            client_obj=client_obj,
+                            type_header=type_header,
+                            other_msg=other_msg)
+
+
+    elif type_header in ['instant','food_recommend_hotel']:
 
         '''
          Not saving attrs here!
@@ -415,7 +478,7 @@ def handle_postback(event):
     # else , directly return postback .
     else:
 
-        # [Exception] because the BREAK POINT 'instant' and 'food_recommend' is both return the same postback
+        # [Exception] because the BREAK POINT 'instant' and 'food_recommend_hotel' is both return the same postback
         # So need not to do further judgement in this place.
 
         save_attr_to_database(type_header, client_obj, pre_postback_data)
@@ -423,8 +486,6 @@ def handle_postback(event):
                         client_obj=client_obj,
                         type_header=type_header) # Do reply function
 
-
-    # TODO : 新增 Location  !!
 
 # return postback (template) message
 def return_postback(event,
@@ -435,17 +496,16 @@ def return_postback(event,
     contents = None
 
 
-    # special handle the BREAK POINT "instant" and "food_recommend"
+    # special handle the BREAK POINT "instant" and "food_recommend_hotel"
     if type_header == 'recommend':
 
         recommend_data = client_obj.recommend
         if 'FoodRecommend' in recommend_data:
-            next_type_header = client_obj.type_header = 'food_recommend'
-            client_obj.type_record.append('food_recommend')
+            next_type_header = client_obj.type_header = 'food_recommend_hotel'
+            client_obj.type_record.append('food_recommend_hotel')
         elif 'HotelRecommend' in recommend_data:
             next_type_header = client_obj.type_header = 'instant'
             client_obj.type_record.append('instant')
-
 
     else:
         next_type_header = client_obj.type_header = next_type_hash.get(type_header, None)  # got next type template
@@ -468,9 +528,21 @@ def return_postback(event,
         contents = carousel_template_generator(temp_type=next_type_header,
                                                dict_list=dict_list)
 
-    # if next stage is "food_recommend" , use hotel name to find hotel object ;
+    # if next stage is "food_recommend_place" , use place name to find resturant object ;
+    elif next_type_header == 'food_recommend_place':
+
+        place_name = client_obj.place_name_input
+        dict_list = get_nearby_resturant(RandomChoose = 4,
+                                         admin_area = client_obj.admin_area,
+                                         rating_threshold = 4.0,
+                                         place_name = place_name)
+
+        contents = carousel_template_generator(temp_type=next_type_header,
+                                               dict_list=dict_list)
+
+    # if next stage is "food_recommend_hotel" , use hotel name to find hotel object ;
     # then use date ,rooms and people as input to object.construct_instant_attr
-    elif next_type_header == 'food_recommend':
+    elif next_type_header == 'food_recommend_hotel':
 
         hotel_name = client_obj.recommend.split('_')[1]
         dict_list = get_nearby_resturant_search_result_by_hotel(hotel_name)
@@ -620,7 +692,7 @@ def save_attr_to_database(type_header, client_obj, data):
         setattr(client_obj, type_header, data)
         client_obj.save()
     else:
-        pass
+        raise ValueError(f'No such attribute : {type_header} exist in {type(client_obj)} !')
 
 
 def get_similar_name_hotel(selected_hotel):
@@ -629,7 +701,7 @@ def get_similar_name_hotel(selected_hotel):
     #function : find the hotel with similar name
 
     :param selected_hotel: the name of hotel want to search
-    :return: the hotel with similar name to selected hotel
+    :return: the hotel "objects" with similar name to selected hotel
     '''
 
     selected_name, max_length, max_char_hotel = selected_hotel, 0, None
@@ -681,13 +753,44 @@ def type_header_backward(client_obj , target_type = None):
 
     return type_header
 
-def get_nearby_resturant_search_result_by_hotel(hotel_name , 
-                                                rating_threshold = 4.0 , 
-                                                RandomChoose = 4):
 
+def get_nearby_resturant(RandomChoose ,
+                         admin_area ,
+                         rating_threshold = 4.0 ,
+                         hotel_name = None ,
+                         place_name = None , ):
+
+    if not hotel_name and not place_name:
+        raise ValueError('No hotel or place assigned!')
+
+    if hotel_name:
+        nearby_resturants = get_nearby_resturant_search_result_by_hotel(hotel_name,
+                                                                        rating_threshold)
+    elif place_name:
+        nearby_resturants = get_nearby_resturant_search_result_by_place(place_name,
+                                                                        rating_threshold,
+                                                                        admin_area)
+
+    if len(nearby_resturants) >= RandomChoose:
+        select_resturant = random.choices(nearby_resturants , k = RandomChoose)
+    else:
+        select_resturant = nearby_resturants
+
+    print(f'DEBUG select_resturant : {select_resturant}')
+
+    if not select_resturant:
+        return []
+
+    dict_list = async_get_search_result_by_resturant(select_resturant)
+
+    return dict_list
+
+
+def get_nearby_resturant_search_result_by_hotel(hotel_name,
+                                                rating_threshold):
     try:
-        select_hotel = Hotel.objects.filter(source_name = hotel_name)
-        select_hotel = select_hotel[0] # only get one of the result
+        select_hotel = Hotel.objects.filter(source_name=hotel_name)
+        select_hotel = select_hotel[0]  # only get one of the result
     except:
         raise NameError('No such hotel exist!')
 
@@ -696,23 +799,28 @@ def get_nearby_resturant_search_result_by_hotel(hotel_name ,
     nearby_resturants = []
     for res_obj in nearby_resturant:
         if res_obj.rating > rating_threshold and \
-            res_obj.place_sub_type != 'con' and \
-            res_obj not in nearby_resturants:
-
+                res_obj.place_sub_type != 'con' and \
+                res_obj not in nearby_resturants:
             nearby_resturants.append(res_obj)
 
+    return nearby_resturants
 
     # TODO : 此處有重複抓取的 BUGS !!!
 
+def get_nearby_resturant_search_result_by_place(place_name,
+                                                rating_threshold,
+                                                admin_area):
 
-    if len(nearby_resturant) >= RandomChoose:
-        select_resturant = random.choices(nearby_resturants , k = RandomChoose)
-    else:
-        select_resturant = nearby_resturants
+    place_latlng = get_place_latlng_by_gmaps(place_name)
+    print(f"DEBUG latlng : {place_latlng}")
+    All_resturants = Resturant.objects.filter(admin_area=admin_area)
 
-    print(f'DEBUG select_resturant : {select_resturant}')
+    nearby_resturants = filter_store_by_criteria(All_resturants,
+                                                center=place_latlng,
+                                                criteria=300,
+                                                scan_shape='circle')
 
-    dict_list = async_get_search_result_by_resturant(select_resturant)
+    nearby_resturants = [resturant for resturant in nearby_resturants
+                         if resturant.rating >= rating_threshold and resturant.place_sub_type != 'con']
 
-    return dict_list
-
+    return nearby_resturants
