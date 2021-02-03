@@ -125,6 +125,42 @@ def button_template_generator(
                     }
         }
 
+    elif temp_type == 'FoodOrHotel':
+
+        button = {
+                    "type": "bubble",
+                    "hero": {
+                        "type": "image",
+                        "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
+                        "size": "full",
+                        "aspectRatio": "320:213",
+                        "aspectMode": "cover"
+                    },
+                    "body": {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                          {
+                            "type": "text",
+                            "text": "找飯店?找美食?",
+                            "size": "xxl",
+                            "style": "italic",
+                            "weight": "bold",
+                            "decoration": "none"
+                          }
+                        ]
+                    },
+                    "footer": {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": generate_list_button(generate_list=['找飯店' , '找美食'] ,
+                                                         temp_type=temp_type
+                                                         ),
+                        "flex": 0,
+                        "spacing": "xs"
+                    }
+        }
+
     elif temp_type == 'queried_date':
 
         button = {
@@ -462,7 +498,105 @@ def button_template_generator(
 
         }
 
-    elif temp_type == 'food_recommend':
+    elif temp_type == 'food_recommend_place':
+
+        # Those property all got from selected hotels attributes
+        if not kwargs:
+            raise ValueError('No hotel attributes assigned!')
+
+        no_pic_url = 'https://lh3.googleusercontent.com/proxy/AgokJAXz_DxQLSWuEHpe5vHj0i1LzdoFJ_iBFjytNm708vp1plRL9LmAWLKV53TZbQz2dg87-9Hca0baV4fb1AgZ10xvVsj_lfLE'
+        result_url = kwargs.get('result_url')
+        preview_pic_url = kwargs.get('preview_pic_url')
+        name = kwargs.get('name')
+        rating = kwargs.get('rating')
+
+
+        button = {
+              "type": "bubble",
+
+              "size": "micro",
+
+              "hero": {
+                            "type": "image",
+                            "url": preview_pic_url if preview_pic_url and preview_pic_url[:5] == 'https'  else no_pic_url,
+                            "size": "full",
+                            "aspectMode": "cover",
+                            "aspectRatio": "320:213"
+              },
+
+              "body": {
+                            "type": "box",
+                            "layout": "vertical",
+                            "contents": [
+                              {
+                                "type": "text",
+                                "text": name,
+                                "weight": "bold",
+                                "size": "sm",
+                                "wrap": True
+                              },
+                              {
+                                "type": "text",
+                                "text": 'Google 上評分 : ' + str(rating) ,
+                                "weight": "bold",
+                                "size": "sm",
+                                "wrap": True
+                              }
+                            ],
+                            "spacing": "sm",
+                            "paddingAll": "13px"
+              },
+
+              "footer": {
+
+                            "type": "box",
+                            "layout": "vertical",
+                            "spacing": "sm",
+                            "contents": [
+                                {
+                                    "type": "button",
+                                    "style": "link",
+                                    "height": "sm",
+                                    "action": {
+                                        "type": "postback",
+                                        "label": "再查一次?",
+                                        # 這邊 postback data 是要找出 filtered Hotel instance ,
+                                        # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
+                                        "data": f"{temp_type}&return_PlaceNameInput",
+                                    }
+                                },
+                                {
+                                    "type": "button",
+                                    "style": "link",
+                                    "height": "sm",
+                                    "action": {
+                                        "type": "postback",
+                                        "label": "改看飯店?",
+                                        # 這邊 postback data 是要找出 filtered Hotel instance ,
+                                        # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
+                                        "data": f"{temp_type}&return_FoodOrHotel",
+                                    }
+                                },
+                                {
+                                    "type": "button",
+                                    "style": "link",
+                                    "height": "sm",
+                                    "action": {
+                                        "type": "uri",
+                                        "label": "看食記!",
+                                        "uri": result_url # special change the header name
+                                    }
+                                }
+                            ],
+
+                            "flex": 0
+              }
+
+
+
+        }
+
+    elif temp_type == 'food_recommend_hotel':
 
         # Those property all got from selected hotels attributes
         if not kwargs:
