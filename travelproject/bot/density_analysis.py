@@ -342,17 +342,23 @@ def get_latlng_directly( positions , admin_area ):
         place = Place.objects.filter(name = position_name , admin_area = admin_area) # search from Place objects
         if not place:
 
-            maps = init_gmaps()
-            res = maps.geocode(position_name)
-            try:
-                location = res[0]['geometry']['location']
-                position_latlng.append([location['lng'] , location['lat']])
-
-            except IndexError: # if place not exist , return empty list
-                return []
+            latlng = get_place_latlng_by_gmaps(position_name)
+            position_latlng.append(latlng)
 
         else:
             position_latlng = position_latlng + [ [p.lng , p.lat] for p in place ]
 
     return position_latlng
 
+
+def get_place_latlng_by_gmaps(position):
+
+    maps = init_gmaps()
+    res = maps.geocode(position)
+
+    try:
+        location = res[0]['geometry']['location']
+        return [location['lng'] , location['lat']]
+
+    except IndexError:  # if place not exist , return empty list
+        return []
