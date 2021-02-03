@@ -13,16 +13,20 @@ Admin_area_range_lat = [21.871068186336803 , 25.30245194059663] # range of lng i
 center_of_city = {
     "Tainan" : {'location' : {'lat': 22.9913113, 'lng': 120.198012} ,
                 'city_en_to_cn' : '台南' ,
-                'popular_food' : ['牛肉湯','肉燥飯','鹹粥','鱔魚意麵'] } ,
+                'popular_food' : ['牛肉湯','肉燥飯','鹹粥','鱔魚意麵'] ,
+                'city_range' : {'lat' : [22.887709 ,23.413328] , 'lng' : [120.033587 ,120.656311]}} ,
     "Hsinchu" : {'location' : {'lat': 24.8015877, 'lng': 120.9715883} ,
                  'city_en_to_cn' : '新竹' ,
-                 'popular_food' : ['米粉' , '貢丸'] },
+                 'popular_food' : ['米粉' , '貢丸'] ,
+                 'city_range' : {'lat' : [24.428411 ,24.946137] , 'lng' : [120.878891 ,121.412232]}},
     "Hualien" : {'location' : {'lat': 23.9927385, 'lng': 121.6013407} ,
                  'city_en_to_cn' : '花蓮' ,
-                 'popular_food' : ['扁食' , '麻糬' ] },
+                 'popular_food' : ['扁食' , '麻糬' ] ,
+                 'city_range' : {'lat' : [23.099277 ,24.370550] , 'lng' : [120.989121 ,121.647408]}},
     "Yilan" : {'location' : {'lat': 24.6783841, 'lng': 121.7745634} ,
                'city_en_to_cn' : '宜蘭' ,
-               'popular_food' : ['糕渣' , '鴨賞'] },
+               'popular_food' : ['糕渣' , '鴨賞'] ,
+               'city_range' : {'lat' : [24.312153 ,24.866411] , 'lng' : [121.316842 ,121.885963]}},
 }
 
 # URL of booking.com
