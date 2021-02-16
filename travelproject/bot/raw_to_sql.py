@@ -3,9 +3,9 @@ import os
 from bot.tools import *
 
 set_env_attr()  # set env attrs
-from linebot.models import *
+from bot.models import *
 
-DICT_PATH = 'C:/Users/h5904/PycharmProjects/TravelProject/travelproject/city_data/Tainan/'
+DICT_PATH = 'C:/Users/tedchang/PycharmProjects/TravelProject/travelproject/city_data/Tainan/'
 
 def save_pkl(path, data):
     with open(path, "wb") as pkl:
@@ -40,15 +40,15 @@ def set_sql_data(data_path , types , hash_types , city = None ):
 def city_data_toSQL( city , base_path = DICT_PATH ):
 
     hash_types = {
+        'train': Station,
+        'hotel': Hotel,
+        'nightmarket': Sightseeing,
+        'sightseeing': Sightseeing,
         'resturant': Resturant,
-        #'train': Station,
-        #'hotel': Hotel,
         'beefsoup': Resturant,
         'eelnoodles': Resturant,
         'gruel': Resturant,
-        #'nightmarket': Sightseeing,
         'con': Resturant,
-        #'sightseeing': Sightseeing,
         'porkrice': Resturant
     }
 
