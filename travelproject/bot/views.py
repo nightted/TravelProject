@@ -12,6 +12,7 @@ from bot.string_comparing import find_common_word_2str
 from bot.density_analysis import get_place_latlng_by_gmaps
 from bot.object_filter import filter_store_by_criteria
 from bot.google_map_scraper import init_gmaps , extract_and_store_place_inform_to_database
+from bot.tools import lat_lng_to_x_y , x_y_to_lat_lng
 
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
@@ -52,6 +53,8 @@ from linebot.models import (
 # 1. 抓取其他縣市的 data 進 SQL
 # 2.
 
+# Some params
+NEARBY_CRITERIA = 500
 
 # Line bot settings
 config = configparser.ConfigParser()
@@ -195,6 +198,7 @@ def handle_message(event):
                         client_obj=client_obj,
                         type_header=type_header,
                         other_msg=other_msg)
+
 
     else:
 
@@ -816,38 +820,35 @@ def get_nearby_resturant(RandomChoose ,
     elif place_name:
 
         maps = init_gmaps()
-        place_latlng = get_place_latlng_by_gmaps(place_name , maps = maps)
-        if not place_latlng:
+        place_x_y = get_place_latlng_by_gmaps(place_name , maps = maps)
+        if not place_x_y:
             raise ValueError("Not exist such place!!")
 
-        nearby_resturants = get_nearby_resturant_search_result_by_place(place_latlng,
+        nearby_resturants = get_nearby_resturant_search_result_by_place(place_x_y,
                                                                         rating_threshold,
                                                                         admin_area)
 
-    Random_Choose = RandomChoose if RandomChoose <= len(nearby_resturants) else len(nearby_resturants) # get the smaller value as choose number
-    select_resturant = random.choices(nearby_resturants , k = Random_Choose)
+        print(f'DEBUG select_resturant : {admin_area} , {nearby_resturants}')
 
 
-    print(f'DEBUG select_resturant : {select_resturant}')
+    # if can't find any nearby resturant , using gmaps place_nearby to compensate it.
+    if len(nearby_resturants) < RandomChoose:
 
-
-    # if can't find any nearby resturant , using gmaps place_nearby to find.
-    if not select_resturant:
-
-        print(f'DEBUG in No selected resturnats !!!!')
+        print(f'DEBUG in insufficient about {RandomChoose - len(nearby_resturants)} resturants !!!')
 
         if maps not in locals():
             maps = init_gmaps()
 
+        place_latlng = x_y_to_lat_lng(place_x_y)
+
         result = maps.places_nearby(keyword='餐廳',
                                     location=place_latlng,
-                                    radius=500,
+                                    radius=NEARBY_CRITERIA,
                                     language='zh-TW')  # get stores list nearby
 
         result = result['results']
-        Random_Choose = RandomChoose if RandomChoose <= len(result) else len(result)
 
-        for place_inform in random.choices(result , k = Random_Choose):
+        for place_inform in random.choices( result , k = RandomChoose - len(nearby_resturants) ):
 
             # scrape near_by resturants and store into SQL
             store_obj = extract_and_store_place_inform_to_database(maps = maps,
@@ -855,12 +856,14 @@ def get_nearby_resturant(RandomChoose ,
                                                                    admin_area = admin_area,
                                                                    place_type = 'resturant',
                                                                    place_sub_type = 'resturant')
-            select_resturant.append(store_obj)
 
+            nearby_resturants.append(store_obj)
 
+    else:
+        nearby_resturants = random.choices( nearby_resturants , k = RandomChoose )
 
+    dict_list = async_get_search_result_by_resturant(nearby_resturants) # async scrape web_preview of all restuant
 
-    dict_list = async_get_search_result_by_resturant(select_resturant) # async scrape web_preview of all restuant
     return dict_list
 
 
@@ -886,16 +889,17 @@ def get_nearby_resturant_search_result_by_hotel(hotel_name,
 
     # TODO : 此處有重複抓取的 BUGS !!!
 
-def get_nearby_resturant_search_result_by_place(place_latlng,
+def get_nearby_resturant_search_result_by_place(place_x_y,
                                                 rating_threshold,
                                                 admin_area):
 
-    print(f"DEBUG latlng : {place_latlng}")
+
 
     All_resturants = Resturant.objects.filter(admin_area=admin_area)
+
     nearby_resturants = filter_store_by_criteria(All_resturants,
-                                                center=place_latlng,
-                                                criteria=300,
+                                                center=place_x_y,
+                                                criteria=2*NEARBY_CRITERIA,
                                                 scan_shape='circle')
 
     nearby_resturants = [resturant for resturant in nearby_resturants
