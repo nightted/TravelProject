@@ -351,13 +351,15 @@ def get_latlng_directly( positions , admin_area ):
     return position_latlng
 
 
-def get_place_latlng_by_gmaps(position):
+def get_place_latlng_by_gmaps(position , maps = None):
 
-    maps = init_gmaps()
+    if not maps:
+        maps = init_gmaps()
+
     res = maps.geocode(position)
-
     try:
         location = res[0]['geometry']['location']
+        print(f"DEBUG in get_place_latlng_by_gmaps : {position} , {location}")
         return [location['lng'] , location['lat']]
 
     except IndexError:  # if place not exist , return empty list
