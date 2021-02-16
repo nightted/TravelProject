@@ -35,7 +35,8 @@ SECRET_KEY = config['secret']['django_secret_key']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['e6508a9b5ab3.ngrok.io']
+ALLOWED_HOSTS = ['bff61ff4309f.ngrok.io']
+
 
 
 # Application definition
@@ -47,7 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_rename_app', # https://pypi.org/project/django-rename-app/
+    # https://pypi.org/project/django-rename-app/
     'bot.apps.BotConfig' # use the name of class in apps.py
 ]
 
