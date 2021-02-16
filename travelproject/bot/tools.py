@@ -122,3 +122,11 @@ def read_key(key_path):
     with open(key_path, 'r') as f:
         KEY = f.read()
     return KEY
+
+
+def x_y_to_lat_lng(x_y):
+    return {'lng': x_y[0], 'lat': x_y[1]}
+
+
+def lat_lng_to_x_y(lat_lng):
+    return [lat_lng['lng'], lat_lng['lat']]
