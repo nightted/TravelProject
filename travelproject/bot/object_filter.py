@@ -8,7 +8,7 @@ def filter_by_criteria(obj, center, criteria, scan_shape='rectan'):
     # function : To filter object fitted criteria
 
     :param obj: object to check if fit criteria
-    :param center: search center
+    :param center: search center , e.g. [lng, lat]
     :param criteria: search "radius"
     :param scan_shape: search shape
 
