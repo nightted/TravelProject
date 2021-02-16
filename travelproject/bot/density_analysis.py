@@ -9,6 +9,7 @@ from bot.tools import set_env_attr
 
 set_env_attr()  # set env attrs
 from bot.models import *
+from bot.tools import lat_lng_to_x_y , x_y_to_lat_lng
 
 
 # Calculate local density of stores
@@ -359,8 +360,10 @@ def get_place_latlng_by_gmaps(position , maps = None):
     res = maps.geocode(position)
     try:
         location = res[0]['geometry']['location']
+
         print(f"DEBUG in get_place_latlng_by_gmaps : {position} , {location}")
-        return [location['lng'] , location['lat']]
+
+        return lat_lng_to_x_y(location)
 
     except IndexError:  # if place not exist , return empty list
         return []

@@ -2,6 +2,7 @@ import time
 import matplotlib.pyplot as plt
 
 from bot.density_analysis import *
+from bot.google_map_scraper import init_gmaps
 
 set_env_attr()
 from bot.models import *
@@ -56,4 +57,3 @@ def test_hotel_instant( test_len ):
 if __name__ == '__main__':
 
     Line_client.objects.all().delete()
-

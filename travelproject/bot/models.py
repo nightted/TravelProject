@@ -331,14 +331,14 @@ class Resturant(Place):
 
         obj = cls(**store_dict)
         if obj not in cls.objects.all():
-            obj.save()  # if not has same data in database , update it .
 
+            obj.save()  # if not has same data in database , update it .
             nearby_hotels = filter_store_by_criteria(Hotel.objects.filter(admin_area=admin_area) ,
                                                      center = obj.return_location(),
                                                      criteria = 500,
                                                      scan_shape = 'circle') # filter nearby hotels
 
-            print(admin_area , obj.name , nearby_hotels)
+            print(f'DEBUG in Resturant models : {admin_area} , {obj.name} , {nearby_hotels}')
             for hotel in nearby_hotels:
                 obj.nearby_hotel.add(hotel) # add into foreign-key
 

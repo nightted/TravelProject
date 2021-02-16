@@ -35,7 +35,7 @@ def filter_store_by_criteria(objs , center, criteria, scan_shape='rectan'):
                          criteria=criteria,
                          scan_shape=scan_shape)  # use partial func to pre-init params pos => https://wiki.jikexueyuan.com/project/explore-python/Functional/partial.html
 
-    filtered_stores = list(map(judge_func, objs))  # get # of points inside circle or rectangle
-    filtered_stores = list(filter(None.__ne__, filtered_stores))  # filter None objects
+    filtered_places = list(map(judge_func, objs))  # get # of points inside circle or rectangle
+    filtered_places = list(filter(None.__ne__, filtered_places))  # filter None objects
 
-    return filtered_stores
+    return filtered_places

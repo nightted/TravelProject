@@ -177,6 +177,8 @@ def geocode_subprocess(geocode_result):
 
 def address_checker(maps , place_inform , name = None ):
 
+    #TODO :以下這間會有 address bugs !!! (From search of 蕭隴文化園區) => [ENGLISH ERROR] 佐禾饌複合式料理-佳里親子友善餐廳|簡餐推薦|平價餐廳|手做餅乾|聚餐餐廳|聚餐首選 change to geocode !
+
     try:
         # In this part , there's 2 kind of ERROR here
         # 1. The address we got contains English words (We need chinese!!!)
