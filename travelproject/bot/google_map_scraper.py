@@ -202,6 +202,9 @@ def address_checker(maps , place_inform , name = None ):
 
     address = address.split('號')[0] + '號'  # remove following char after '號' and 70X at head , EX : 700中西區海安路256號一樓 => 中西區海安路256號
 
+    return address
+
+
 # get store information with location , keyword , search radius
 def store_scraper(maps,
                   keyword,
@@ -239,12 +242,6 @@ def store_scraper(maps,
       #objects : store or hotel objects found
 
     '''
-    place_class_hash = {
-        'hotel': Hotel,
-        'resturant': Resturant,
-        'station': Station,
-        'sightseeing': Sightseeing,
-    }
 
     if not place_type:
         raise NameError('No store type assigned!')
@@ -253,61 +250,79 @@ def store_scraper(maps,
         objects = []
 
     result = maps.places_nearby(page_token=next_page_token,
-                             keyword=keyword,
-                             location=location,
-                             radius=radius,
-                             language='zh-TW')  # get stores list nearby
+                                keyword=keyword,
+                                location=location,
+                                radius=radius,
+                                language='zh-TW')  # get stores list nearby
 
     for place_inform in result['results']:
 
-        lat_lng = place_inform['geometry']['location']
-        lat, lng = lat_lng['lat'], lat_lng["lng"]
-        name = place_inform['name']
-        place_id = place_inform['place_id']
-        rating = place_inform.get('rating', None)
+        store_obj = extract_and_store_place_inform_to_database(maps,
+                                                               place_inform = place_inform,
+                                                               admin_area = admin_area,
+                                                               place_type = place_type,
+                                                               place_sub_type = place_sub_type)
 
-        # exclude stores not contains ratings
-        if rating:
-
-            address = address_checker(maps , place_inform , name) # special handle for address
-
-            information = {
-                               'place_type': place_type ,
-                               'place_sub_type' : place_sub_type,
-                               'name': name,
-                               'lng': lng,
-                               'lat': lat,
-                               'rating': rating,
-                               'admin_area': admin_area,
-                               'address': address,
-                               'place_id': place_id
-                           }
-
-            # NOTE THAT , the store_obj generate here is NOT save to database yet !
-            try :
-                store_obj = place_class_hash[place_type].create_obj_by_dict(**information)
-            except KeyError:
-                raise NameError('Need to specify place CLASS NAME in class_hash table!')
-
-            # ignore overlap objects
-            if store_obj not in objects:
-                objects.append(store_obj)
-
-        # discard None-rating store and add new items if it's not already exsit
-        else:
-            print(f"[WARNING] {name} doesn't contains rating !")
-            continue
+        if store_obj not in objects:
+            objects.append(store_obj)
 
     next_page_token = result.get('next_page_token', None)  # get if token exsit or return None
 
     return next_page_token, objects
 
 
+def extract_and_store_place_inform_to_database(maps,
+                                               place_inform,
+                                               admin_area,
+                                               place_type,
+                                               place_sub_type):
+
+    place_class_hash = {
+        'hotel': Hotel,
+        'resturant': Resturant,
+        'station': Station,
+        'sightseeing': Sightseeing,
+    }
+
+    lat_lng = place_inform['geometry']['location']
+    lat, lng = lat_lng['lat'], lat_lng["lng"]
+    name = place_inform['name']
+    place_id = place_inform['place_id']
+    rating = place_inform.get('rating', None)
+
+    # set rating = 0.0 for non-rating store.
+    if not rating:
+        rating = 0.0
+        print(f"[WARNING] {name} doesn't contains rating !")
+
+    address = address_checker(maps, place_inform, name)  # special handle for address
+
+    information = {
+        'place_type': place_type,
+        'place_sub_type': place_sub_type,
+        'name': name,
+        'lng': lng,
+        'lat': lat,
+        'rating': rating,
+        'admin_area': admin_area,
+        'address': address,
+        'place_id': place_id
+    }
+
+    # NOTE THAT , the store_obj generate here is NOT save to database yet !
+    try:
+        store_obj = place_class_hash[place_type].create_obj_by_dict(**information)
+    except KeyError:
+        raise NameError('Need to specify place CLASS NAME in class_hash table!')
+
+    return store_obj
+
+
+
 # get store information with location , keyword , search radius (plus the change pages and move search location)
 # 1 ranging is across 2 * radius in each sides
 # EX : radius = 1000 , ranging = 1 , so the spanning region is 2000 in top,bottom,left,right directions , total scan area = 4000 X 4000 .
-def moving_store_scraper(
-                         keyword,
+def moving_store_scraper(keyword,
                          search_center,
                          admin_area,
                          radius,
