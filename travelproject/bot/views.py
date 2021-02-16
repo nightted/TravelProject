@@ -11,6 +11,7 @@ from bot.generate_template import button_template_generator , carousel_template_
 from bot.string_comparing import find_common_word_2str
 from bot.density_analysis import get_place_latlng_by_gmaps
 from bot.object_filter import filter_store_by_criteria
+from bot.google_map_scraper import init_gmaps , extract_and_store_place_inform_to_database
 
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
@@ -144,6 +145,15 @@ def handle_follow(event):
 @handler.add(MessageEvent, message=[TextMessage , StickerMessage])
 def handle_message(event):
 
+    '''
+        # function: handling the message event
+
+        :param event: line-bot event object
+
+        :return: None
+    '''
+
+
     # got client object
     # In the beginning of entering apps ,
     # try to get existing Line_client ; if not exist , initial Line_client object
@@ -207,11 +217,13 @@ def handle_message(event):
             # in self-preparing 'place_name_input' stage , save attr and transfer to return postback
             elif type_header == 'place_name_input' :
 
-                # TODO : 這裡可多一個 place 是否在 admin area 內的判斷!
+                # get place lat lng directly , and check in admin_area range or not
                 place_latlng = get_place_latlng_by_gmaps(msg)
                 lng , lat = place_latlng[0] , place_latlng[1]
+
                 lat_range = center_of_city[client_obj.admin_area]['city_range']['lat']
                 lng_range = center_of_city[client_obj.admin_area]['city_range']['lng']
+
                 in_range = lng_range[0]<=lng<=lng_range[1] and lat_range[0]<=lat<=lat_range[1]
 
                 if in_range:
@@ -220,9 +232,12 @@ def handle_message(event):
                                     client_obj=client_obj,
                                     type_header=type_header)
                 else:
+
                     '''
                      Not saving attrs here!
                     '''
+
+                    # if not in admin_area range , re-send message.
                     type_header = type_header_backward(client_obj)
                     other_msg = f'您的給的位置不在 {client_obj.admin_area} 區域內喔! 請重新輸入位置~'
                     return_message(event,
@@ -234,7 +249,8 @@ def handle_message(event):
             # in self-preparing 'hotel_name_input' stage , check the input name exist or not
             elif type_header == 'hotel_name_input' :
 
-                selected_hotel = get_similar_name_hotel(msg) # check if this hotel name exist in hotel list
+                # check if this hotel name exist in hotel list
+                selected_hotel = get_similar_name_hotel(msg)
 
                 if selected_hotel:
 
@@ -244,9 +260,12 @@ def handle_message(event):
                                     client_obj=client_obj,
                                     type_header=type_header)
                 else:
+
                     '''
                      Not saving attrs here!
                     '''
+
+                    # if haven't found similar hotel , re-send message.
                     type_header = type_header_backward(client_obj)
                     other_msg = '找不到您輸入的飯店喔 ,請確認名稱 ~ '
                     return_message(event,
@@ -277,13 +296,19 @@ def return_message(event,
                    **other_msg
                    ):
 
-
     '''
     # function : return the message
 
-    # next_type_header : the type will return to client side
+    :param event: line-bot event object
+    :param client_obj: client object contained detail information of client itself.
+    :param type_header: the type header stage now.
+    :param other_msg: the additional message want to be mixed in message.
+
+    :return: None
 
     '''
+
+
     contents = None
 
     # special handle for BREAK POINT "NeedRecommendOrNot" ; if got "N" in 'NeedRecommendOrNot' stage , "fork" to 'hotel_name_input'
@@ -342,6 +367,14 @@ def return_message(event,
 
 @handler.add(PostbackEvent)
 def handle_postback(event):
+
+    '''
+    # function: handling the postback event
+
+    :param event: line-bot event object
+
+    :return: None
+    '''
 
     # carousal :　https://github.com/xiaosean/Line_chatbot_tutorial/blob/master/push_tutorial.ipynb
 
@@ -493,6 +526,17 @@ def return_postback(event,
                     type_header,
                     **other_msg
                     ):
+    '''
+    # function : return the message
+
+    :param event: line-bot event object
+    :param client_obj: client object contained detail information of client itself.
+    :param type_header: the type header stage now.
+    :param other_msg: the additional message want to be mixed in message.
+
+    :return: None
+    '''
+
     contents = None
 
 
@@ -537,6 +581,7 @@ def return_postback(event,
                                          rating_threshold = 4.0,
                                          place_name = place_name)
 
+        print(f'DEBUG in carousel_template_generator : {dict_list}')
         contents = carousel_template_generator(temp_type=next_type_header,
                                                dict_list=dict_list)
 
@@ -545,7 +590,9 @@ def return_postback(event,
     elif next_type_header == 'food_recommend_hotel':
 
         hotel_name = client_obj.recommend.split('_')[1]
-        dict_list = get_nearby_resturant_search_result_by_hotel(hotel_name)
+        dict_list = get_nearby_resturant(RandomChoose = 4,
+                                         rating_threshold = 4.0,
+                                         hotel_name = hotel_name)
         contents = carousel_template_generator(temp_type=next_type_header,
                                                dict_list=dict_list)
 
@@ -755,8 +802,8 @@ def type_header_backward(client_obj , target_type = None):
 
 
 def get_nearby_resturant(RandomChoose ,
-                         admin_area ,
                          rating_threshold = 4.0 ,
+                         admin_area = None ,
                          hotel_name = None ,
                          place_name = None , ):
 
@@ -767,27 +814,59 @@ def get_nearby_resturant(RandomChoose ,
         nearby_resturants = get_nearby_resturant_search_result_by_hotel(hotel_name,
                                                                         rating_threshold)
     elif place_name:
-        nearby_resturants = get_nearby_resturant_search_result_by_place(place_name,
+
+        maps = init_gmaps()
+        place_latlng = get_place_latlng_by_gmaps(place_name , maps = maps)
+        if not place_latlng:
+            raise ValueError("Not exist such place!!")
+
+        nearby_resturants = get_nearby_resturant_search_result_by_place(place_latlng,
                                                                         rating_threshold,
                                                                         admin_area)
 
-    if len(nearby_resturants) >= RandomChoose:
-        select_resturant = random.choices(nearby_resturants , k = RandomChoose)
-    else:
-        select_resturant = nearby_resturants
+    Random_Choose = RandomChoose if RandomChoose <= len(nearby_resturants) else len(nearby_resturants) # get the smaller value as choose number
+    select_resturant = random.choices(nearby_resturants , k = Random_Choose)
+
 
     print(f'DEBUG select_resturant : {select_resturant}')
 
+
+    # if can't find any nearby resturant , using gmaps place_nearby to find.
     if not select_resturant:
-        return []
 
-    dict_list = async_get_search_result_by_resturant(select_resturant)
+        print(f'DEBUG in No selected resturnats !!!!')
 
+        if maps not in locals():
+            maps = init_gmaps()
+
+        result = maps.places_nearby(keyword='餐廳',
+                                    location=place_latlng,
+                                    radius=500,
+                                    language='zh-TW')  # get stores list nearby
+
+        result = result['results']
+        Random_Choose = RandomChoose if RandomChoose <= len(result) else len(result)
+
+        for place_inform in random.choices(result , k = Random_Choose):
+
+            # scrape near_by resturants and store into SQL
+            store_obj = extract_and_store_place_inform_to_database(maps = maps,
+                                                                   place_inform = place_inform,
+                                                                   admin_area = admin_area,
+                                                                   place_type = 'resturant',
+                                                                   place_sub_type = 'resturant')
+            select_resturant.append(store_obj)
+
+
+
+
+    dict_list = async_get_search_result_by_resturant(select_resturant) # async scrape web_preview of all restuant
     return dict_list
 
 
 def get_nearby_resturant_search_result_by_hotel(hotel_name,
                                                 rating_threshold):
+
     try:
         select_hotel = Hotel.objects.filter(source_name=hotel_name)
         select_hotel = select_hotel[0]  # only get one of the result
@@ -807,14 +886,13 @@ def get_nearby_resturant_search_result_by_hotel(hotel_name,
 
     # TODO : 此處有重複抓取的 BUGS !!!
 
-def get_nearby_resturant_search_result_by_place(place_name,
+def get_nearby_resturant_search_result_by_place(place_latlng,
                                                 rating_threshold,
                                                 admin_area):
 
-    place_latlng = get_place_latlng_by_gmaps(place_name)
     print(f"DEBUG latlng : {place_latlng}")
-    All_resturants = Resturant.objects.filter(admin_area=admin_area)
 
+    All_resturants = Resturant.objects.filter(admin_area=admin_area)
     nearby_resturants = filter_store_by_criteria(All_resturants,
                                                 center=place_latlng,
                                                 criteria=300,
@@ -822,5 +900,6 @@ def get_nearby_resturant_search_result_by_place(place_name,
 
     nearby_resturants = [resturant for resturant in nearby_resturants
                          if resturant.rating >= rating_threshold and resturant.place_sub_type != 'con']
+
 
     return nearby_resturants
