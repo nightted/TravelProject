@@ -3,6 +3,11 @@
 import configparser
 from bot.tools import read_key
 
+# some params
+NEARBY_CRITERIA = 500
+GMAP_RATING_THRESHOLD = 4.0
+BOOKING_RATING_THRESHOLD = 8.0
+
 # geometry property of taiwan
 lng_1 = 102.516520*1000 # 1 longitude to meters
 lat_1 = 110.740000*1000 # 1 latitude to meters
