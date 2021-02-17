@@ -341,13 +341,13 @@ def return_message(event,
         raise ValueError('No next type exist!!!')
 
     if next_type_header == 'place_name_input':
-        contents = '請輸入你所在位置(例如:民宿,飯店,景點..)或地址~ , 輸入完成後請靜待5~8秒鐘等待資料抓取~ (如沒回應 , 請再輸入一次!)'
+        contents = '請輸入你所在位置(例如:民宿,飯店,景點..)或地址~ , 輸入完成後請靜待5~8秒鐘等待資料抓取~ (如沒回應 , 請點按"再查一次"的按鈕!)'
 
     elif next_type_header == 'hotel_name_input':
         contents = '請輸入你想住的飯店~ , 輸入完成後請靜待3~5秒鐘等待資料抓取~ (如沒回應 , 請再輸入一次!)'
 
     elif next_type_header == 'sightseeing':
-        contents = '請輸入你想去的景點~ , 輸入完成後請靜待3~5秒鐘等待資料抓取~'
+        contents = '請輸入你想去的景點 ~ (如沒想去的地方 , 直接輸入"無") , 輸入完成後請靜待3~5秒鐘等待資料抓取~'
 
     if not contents:
         raise ValueError(" No content assign !! ")
@@ -390,11 +390,18 @@ def handle_postback(event):
         client_obj = Line_client.create_obj_by_dict(user_id = event.source.user_id,
                                                     query_date=datetime.date.today())
 
-    # TODO(怪怪?) : 這邊防止剛進來手殘按到之前的 button .
+    # 這邊防止剛進來手殘按到之前的 button .
     if not client_obj.type_header and not client_obj.entering_message:
+
         client_obj.type_header = type_header = 'entering_message'
         client_obj.type_record.append('entering_message')
-        pre_postback_data = None
+
+        other_msg = greeting_message if type_header == 'entering_message' else ''
+        save_attr_to_database(type_header, client_obj, 'None')  # saving data to database if data_key exist in object attr
+        return_postback(event,
+                        client_obj=client_obj,
+                        type_header=type_header,
+                        other_msg=other_msg)
 
     else:
         # Got a post event back , and parse the current type and data
@@ -407,8 +414,6 @@ def handle_postback(event):
     # 2. 要按目前的 postback button , 卻誤觸更先前的 postback button
     # 3. 為1,2的延伸 , 倒回誤觸的 postback stage(見1,2解法)後 , 又誤觸了"誤觸前"原本應該要按的 postback button
     #    EX : 我原本在 recommend , 按到 num_rooms ; 那現在倒回 num_rooms 後 , 我又按到 recommend button XDD
-
-
     if type_header != client_obj.type_header:
 
         # 解決 1 ,2 的作法 (type header 在 client_obj.type_header 之前):
@@ -426,14 +431,13 @@ def handle_postback(event):
                             type_header=type_header)
 
 
-
     # BREAK POINT 1. 'datetime' and 'place_name_input' , if 'FoodOrHotel' == "N"
     # BREAK POINT 2. 'silence' and 'hotel_name_input' , if NeedRecommendOrNot == "N"
     # POSTBACK -> MESSAGE : if 'food' type (next is 'sightseeing')
     # "fork" to return message
-    if (type_header == 'NeedRecommendOrNot' and pre_postback_data == "N") or \
-       (type_header == 'FoodOrHotel' and pre_postback_data == "找美食") or \
-        type_header == "food":
+    elif (type_header == 'NeedRecommendOrNot' and pre_postback_data == "N") or \
+         (type_header == 'FoodOrHotel' and pre_postback_data == "找美食") or \
+         type_header == "food":
 
         save_attr_to_database(type_header , client_obj , pre_postback_data)
         return_message(event,
@@ -585,7 +589,6 @@ def return_postback(event,
                                          rating_threshold = 4.0,
                                          place_name = place_name)
 
-        print(f'DEBUG in carousel_template_generator : {dict_list}')
         contents = carousel_template_generator(temp_type=next_type_header,
                                                dict_list=dict_list)
 
@@ -678,7 +681,7 @@ def get_latlng_address(place_name):
 def get_recommend_hotels(client_obj):
 
     admin_area = client_obj.admin_area
-    target_sightseeing = client_obj.sightseeing
+    target_sightseeing = client_obj.sightseeing if client_obj.sightseeing not in ['無' , '沒有'] else None
     target_food = client_obj.food
     silence_demand = True if client_obj.silence == 'Silence' else False
 
@@ -828,7 +831,8 @@ def get_nearby_resturant(RandomChoose ,
                                                                         rating_threshold,
                                                                         admin_area)
 
-        print(f'DEBUG select_resturant : {admin_area} , {nearby_resturants}')
+        print(f'DEBUG nearby_resturants  : {admin_area} , {[resturant.name for resturant in nearby_resturants]}')
+
 
 
     # if can't find any nearby resturant , using gmaps place_nearby to compensate it.
@@ -847,8 +851,9 @@ def get_nearby_resturant(RandomChoose ,
                                     language='zh-TW')  # get stores list nearby
 
         result = result['results']
+        select_num = min(RandomChoose - len(nearby_resturants) , len(result)) # if the num of search result < num need to compensate , set select num equal to min of them
 
-        for place_inform in random.choices( result , k = RandomChoose - len(nearby_resturants) ):
+        for place_inform in random.sample( result , select_num ):
 
             # scrape near_by resturants and store into SQL
             store_obj = extract_and_store_place_inform_to_database(maps = maps,
@@ -860,7 +865,7 @@ def get_nearby_resturant(RandomChoose ,
             nearby_resturants.append(store_obj)
 
     else:
-        nearby_resturants = random.choices( nearby_resturants , k = RandomChoose )
+        nearby_resturants = random.sample( nearby_resturants , RandomChoose )
 
     dict_list = async_get_search_result_by_resturant(nearby_resturants) # async scrape web_preview of all restuant
 
@@ -887,8 +892,6 @@ def get_nearby_resturant_search_result_by_hotel(hotel_name,
 
     return nearby_resturants
 
-    # TODO : 此處有重複抓取的 BUGS !!!
-
 def get_nearby_resturant_search_result_by_place(place_x_y,
                                                 rating_threshold,
                                                 admin_area):
@@ -903,7 +906,7 @@ def get_nearby_resturant_search_result_by_place(place_x_y,
                                                 scan_shape='circle')
 
     nearby_resturants = [resturant for resturant in nearby_resturants
-                         if resturant.rating >= rating_threshold and resturant.place_sub_type != 'con']
+                         if resturant.rating >= rating_threshold and resturant.place_sub_type != 'con'] # filter by rating and not contains 'convenience stores'
 
 
     return nearby_resturants
