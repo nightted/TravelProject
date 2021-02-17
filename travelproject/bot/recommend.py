@@ -7,6 +7,8 @@ from bot.tools import set_env_attr , distance
 
 set_env_attr()  # set env attrs TODO : 後續 deploy 要處理這邊的環境變數設置 !!!
 from bot.models import *
+from bot.constants import *
+
 
 '''
 This functions are for hotel recommendations by store density and demand of silence or sightseeing positions
@@ -14,9 +16,9 @@ This functions are for hotel recommendations by store density and demand of sile
 
 def find_hotel_by_points_and_rating( point ,
                                      admin_area ,
-                                     search_radius = 300 , # TODO : set as global const
-                                     gmap_rating_threshold = 4.0,
-                                     booking_rating_threshold = 8.0):
+                                     search_radius = NEARBY_CRITERIA ,
+                                     gmap_rating_threshold = GMAP_RATING_THRESHOLD,
+                                     booking_rating_threshold = BOOKING_RATING_THRESHOLD):
 
     def threshold_judge(hotel):
 
@@ -82,9 +84,12 @@ def find_best_hotels(*density_objects ,
     if target_food:
 
         select_food = []
-        for key_food in hash_name_obj_density.keys():
-            if find_common_word_2str(target_food, key_food)[0] >= 2:
-                select_food.append(key_food) # add food into list to calculate density
+        for food in target_food:
+            for key_food in hash_name_obj_density.keys():
+                if find_common_word_2str(food, key_food)[0] >= 2:
+                    select_food.append(key_food) # add food into list to calculate density
+                    target_food.remove(food)
+
 
         select_food = list(set(select_food))
         if select_food:
@@ -119,13 +124,13 @@ def find_best_hotels(*density_objects ,
     best_hotels , best_points , loop_times = [] , [] , 1
     while len(best_hotels) < num_to_find:
 
-        select_point = random.choices( peaks )[0] #(Done) random select 1 point form topN points ; selection weights from point score calculate before
+        select_point = random.sample( peaks , 1)[0] #(Done) random select 1 point form topN points ; selection weights from point score calculate before
         select_hotel = find_hotel_by_points_and_rating( select_point ,
                                                         admin_area ,
                                                         gmap_rating_threshold = gmap_rating_threshold ,
                                                         booking_rating_threshold = booking_rating_threshold)  # get the closest randomN hotels
 
-        select_hotel = random.choices(select_hotel)[0] if select_hotel else None # random select 1 hotels
+        select_hotel = random.sample(select_hotel , 1)[0] if select_hotel else None # random select 1 hotels
 
         if select_hotel and select_hotel not in best_hotels:
             best_hotels.append(select_hotel)
