@@ -31,6 +31,7 @@ def init_gmaps():
 
 # Check the place is in target admin_area or not
 def check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
+
     try:
         lng = lnglat['lng']
         lat = lnglat['lat']
@@ -154,6 +155,7 @@ def geocode_subprocess(geocode_result):
     # 3.(in outer function) place not in taiwan !
 
     if not geocode_result:
+
         print('[WARNING] No such hotel found in google map !')
         return None
 
@@ -164,6 +166,7 @@ def geocode_subprocess(geocode_result):
                    if not find_english_char(level_ad['long_name'])]  # get address by administrative level
     # if the administrative level goes wrong
     except KeyError:
+
         print('Something wrong with the address!')
         return None
 
@@ -176,8 +179,6 @@ def geocode_subprocess(geocode_result):
 
 
 def address_checker(maps , place_inform , name = None ):
-
-    #TODO :以下這間會有 address bugs !!! (From search of 蕭隴文化園區) => [ENGLISH ERROR] 佐禾饌複合式料理-佳里親子友善餐廳|簡餐推薦|平價餐廳|手做餅乾|聚餐餐廳|聚餐首選 change to geocode !
 
     try:
         # In this part , there's 2 kind of ERROR here
@@ -194,17 +195,67 @@ def address_checker(maps , place_inform , name = None ):
 
             print(f'[ENGLISH ERROR] {name} change to geocode !')
             extract_address = extract_address_by_geocode(maps, name)
-            address = extract_address if not extract_address else address
+            address = extract_address if extract_address else address
 
     # if key error when finding address , special handling
     except KeyError:
+
         print(f'[KEYERROR ERROR] {name} change to geocode !')
         extract_address = extract_address_by_geocode(maps, name)
         address = extract_address if extract_address != None else address
 
-    address = address.split('號')[0] + '號'  # remove following char after '號' and 70X at head , EX : 700中西區海安路256號一樓 => 中西區海安路256號
+    if '號' in address:
+        address = address.split('號')[0] + '號'  # remove following char after '號' and 70X at head , EX : 700中西區海安路256號一樓 => 中西區海安路256號
 
     return address
+
+
+def extract_and_store_place_inform_to_database(maps,
+                                               place_inform,
+                                               admin_area,
+                                               place_type,
+                                               place_sub_type):
+
+    place_class_hash = {
+        'hotel': Hotel,
+        'resturant': Resturant,
+        'station': Station,
+        'sightseeing': Sightseeing,
+    }
+
+    lat_lng = place_inform['geometry']['location']
+    lat, lng = lat_lng['lat'], lat_lng["lng"]
+    name = place_inform['name']
+    place_id = place_inform['place_id']
+    rating = place_inform.get('rating', None)
+
+    # set rating = 0.0 for non-rating store.
+    if not rating:
+        rating = 0.0
+        print(f"[WARNING] {name} doesn't contains rating !")
+
+    address = address_checker(maps, place_inform, name)  # special handle for address
+
+    information = {
+        'place_type': place_type,
+        'place_sub_type': place_sub_type,
+        'name': name,
+        'lng': lng,
+        'lat': lat,
+        'rating': rating,
+        'admin_area': admin_area,
+        'address': address,
+        'place_id': place_id
+    }
+
+    # NOTE THAT , the store_obj generate here is NOT save to database yet !
+    try:
+        store_obj = place_class_hash[place_type].create_obj_by_dict(**information)
+    except KeyError:
+        raise NameError('Need to specify place CLASS NAME in class_hash table!')
+
+    return store_obj
+
 
 
 # get store information with location , keyword , search radius
@@ -271,53 +322,6 @@ def store_scraper(maps,
     next_page_token = result.get('next_page_token', None)  # get if token exsit or return None
 
     return next_page_token, objects
-
-
-def extract_and_store_place_inform_to_database(maps,
-                                               place_inform,
-                                               admin_area,
-                                               place_type,
-                                               place_sub_type):
-
-    place_class_hash = {
-        'hotel': Hotel,
-        'resturant': Resturant,
-        'station': Station,
-        'sightseeing': Sightseeing,
-    }
-
-    lat_lng = place_inform['geometry']['location']
-    lat, lng = lat_lng['lat'], lat_lng["lng"]
-    name = place_inform['name']
-    place_id = place_inform['place_id']
-    rating = place_inform.get('rating', None)
-
-    # set rating = 0.0 for non-rating store.
-    if not rating:
-        rating = 0.0
-        print(f"[WARNING] {name} doesn't contains rating !")
-
-    address = address_checker(maps, place_inform, name)  # special handle for address
-
-    information = {
-        'place_type': place_type,
-        'place_sub_type': place_sub_type,
-        'name': name,
-        'lng': lng,
-        'lat': lat,
-        'rating': rating,
-        'admin_area': admin_area,
-        'address': address,
-        'place_id': place_id
-    }
-
-    # NOTE THAT , the store_obj generate here is NOT save to database yet !
-    try:
-        store_obj = place_class_hash[place_type].create_obj_by_dict(**information)
-    except KeyError:
-        raise NameError('Need to specify place CLASS NAME in class_hash table!')
-
-    return store_obj
 
 
 
