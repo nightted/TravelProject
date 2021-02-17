@@ -6,7 +6,7 @@ import random
 from bot.async_scraper import async_get_search_result_by_resturant
 from bot.models import *
 from bot.recommend import find_best_hotels
-from bot.constants import center_of_city
+from bot.constants import *
 from bot.generate_template import button_template_generator , carousel_template_generator
 from bot.string_comparing import find_common_word_2str
 from bot.density_analysis import get_place_latlng_by_gmaps
@@ -397,7 +397,7 @@ def handle_postback(event):
         client_obj.type_record.append('entering_message')
 
         other_msg = greeting_message if type_header == 'entering_message' else ''
-        save_attr_to_database(type_header, client_obj, 'None')  # saving data to database if data_key exist in object attr
+        save_attr_to_database(type_header, client_obj, None )  # saving data to database if data_key exist in object attr
         return_postback(event,
                         client_obj=client_obj,
                         type_header=type_header,
@@ -681,8 +681,8 @@ def get_latlng_address(place_name):
 def get_recommend_hotels(client_obj):
 
     admin_area = client_obj.admin_area
-    target_sightseeing = client_obj.sightseeing if client_obj.sightseeing not in ['無' , '沒有'] else None
-    target_food = client_obj.food
+    target_sightseeing = [client_obj.sightseeing] if client_obj.sightseeing not in ['無' , '沒有'] else []
+    target_food = [client_obj.food] if client_obj.food != '沒特別想吃的' else []
     silence_demand = True if client_obj.silence == 'Silence' else False
 
     d_rs = Array_2d.objects.get(admin_area=admin_area, name='resturant')
@@ -699,8 +699,16 @@ def get_recommend_hotels(client_obj):
                                         gmap_rating_threshold=4.0,
                                         booking_rating_threshold=8.0
                                         )
+    dict_list = []
+    for hotel in select_hotels:
 
-    dict_list = [hotel.__dict__ for hotel in select_hotels ]
+        hotel_pics= list(hotel.picture.all())
+        hotel_pics = random.sample(hotel_pics , k=2)
+        hotel_pics_url = [pic.pics for pic in hotel_pics]
+
+        dict = hotel.__dict__
+        dict.update({'hotel_pics_url':hotel_pics_url})
+        dict_list.append(dict)
 
     return dict_list
 
@@ -725,7 +733,7 @@ def get_hotel_instance(client_obj):
     instant_objs = selected_hotel.construct_instant_attr(queried_date = queried_date ,
                                                          num_people = num_people ,
                                                          num_rooms = num_rooms)
-    pic_link = getattr(selected_hotel , 'pic_link') # TODO : 這邊注意會抓到沒 pic 的 non-booking hotel!
+    pic_link = getattr(selected_hotel , 'pic_link')
 
     dict_list = []
     #print([type(obj.queried_date) for obj in instant_objs])
@@ -809,7 +817,7 @@ def type_header_backward(client_obj , target_type = None):
 
 
 def get_nearby_resturant(RandomChoose ,
-                         rating_threshold = 4.0 ,
+                         rating_threshold = GMAP_RATING_THRESHOLD ,
                          admin_area = None ,
                          hotel_name = None ,
                          place_name = None , ):
@@ -818,8 +826,11 @@ def get_nearby_resturant(RandomChoose ,
         raise ValueError('No hotel or place assigned!')
 
     if hotel_name:
-        nearby_resturants = get_nearby_resturant_search_result_by_hotel(hotel_name,
-                                                                        rating_threshold)
+
+        nearby_resturants , select_hotel = get_nearby_resturant_search_result_by_hotel(hotel_name,
+                                                                                       rating_threshold)
+        place_x_y = [select_hotel.lng , select_hotel.lat]
+
     elif place_name:
 
         maps = init_gmaps()
@@ -867,7 +878,14 @@ def get_nearby_resturant(RandomChoose ,
     else:
         nearby_resturants = random.sample( nearby_resturants , RandomChoose )
 
+
     dict_list = async_get_search_result_by_resturant(nearby_resturants) # async scrape web_preview of all restuant
+
+    # calculate the distance from hotel.
+    for dict in dict_list:
+        resturant_x_y = dict.get('position_xy')
+        distance_resturant = distance(place_x_y,resturant_x_y)
+        dict.update({'distance' : distance_resturant})
 
     return dict_list
 
@@ -890,7 +908,7 @@ def get_nearby_resturant_search_result_by_hotel(hotel_name,
                 res_obj not in nearby_resturants:
             nearby_resturants.append(res_obj)
 
-    return nearby_resturants
+    return nearby_resturants , select_hotel
 
 def get_nearby_resturant_search_result_by_place(place_x_y,
                                                 rating_threshold,
