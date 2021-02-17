@@ -35,11 +35,12 @@ SECRET_KEY = config['secret']['django_secret_key']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['58800a1ea15a.ngrok.io']
+ALLOWED_HOSTS = ['1d5fdbcd5451.ngrok.io']
 
 
 
 # Application definition
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
