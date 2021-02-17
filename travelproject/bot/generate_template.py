@@ -1,10 +1,13 @@
 from bot.constants import *
 
 
+# params:
+SIZE = "mega"
+
 def generate_rating_star(rating , font_size = None , font_color = None):
 
     font_size = "xs" if not font_size else font_size
-    font_color = "#8c8c8c" if not font_color else font_color
+    font_color = "#f7d705" if not font_color else font_color
 
     gold_star = {
                   "type": "icon",
@@ -93,6 +96,7 @@ def button_template_generator(
 
         button = {
                     "type": "bubble",
+                    "size": SIZE ,
                     "hero": {
                         "type": "image",
                         "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
@@ -129,6 +133,7 @@ def button_template_generator(
 
         button = {
                     "type": "bubble",
+                    "size": SIZE,
                     "hero": {
                         "type": "image",
                         "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
@@ -165,6 +170,7 @@ def button_template_generator(
 
         button = {
                     "type": "bubble",
+                    "size": SIZE,
                     "hero": {
                         "type": "image",
                         "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
@@ -212,6 +218,7 @@ def button_template_generator(
 
         button = {
             "type": "bubble",
+            "size": SIZE,
             "hero": {
                 "type": "image",
                 "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
@@ -248,6 +255,7 @@ def button_template_generator(
 
         button = {
             "type": "bubble",
+            "size": SIZE,
             "hero": {
                 "type": "image",
                 "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
@@ -284,6 +292,7 @@ def button_template_generator(
 
         button = {
             "type": "bubble",
+            "size": SIZE,
             "hero": {
                 "type": "image",
                 "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
@@ -318,6 +327,7 @@ def button_template_generator(
 
         button = {
             "type": "bubble",
+            "size": SIZE,
             "hero": {
                 "type": "image",
                 "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
@@ -358,6 +368,7 @@ def button_template_generator(
 
         button = {
             "type": "bubble",
+            "size": SIZE,
             "hero": {
                 "type": "image",
                 "url": "https://scdn.line-apps.com/n/channel_devcenter/img/fx/01_1_cafe.png",
@@ -389,7 +400,7 @@ def button_template_generator(
                                                                                 "type": "postback",
                                                                                 "label": '沒特別想吃的',
                                                                                 # combine the pre_postback_data with the current button data
-                                                                                "data": f"{temp_type}&None" # EX : location&花蓮_
+                                                                                "data": f"{temp_type}&沒特別想吃的" # EX : location&花蓮_
                                                                             }
                                                                          }]
 
@@ -407,49 +418,135 @@ def button_template_generator(
         source_rating = kwargs.get('source_rating') if kwargs.get('source_rating') else '無評分'
         star = kwargs.get('star') if kwargs.get('star') else 0
         pic_link = kwargs.get('pic_link',None)
+        hotel_pics_url = kwargs.get('hotel_pics_url',None)
+
 
 
         button = {
               "type": "bubble",
-
-              "size": "micro",
-
-              "hero": {
-                            "type": "image",
-                            "url": pic_link ,
-                            "size": "full",
-                            "aspectMode": "cover",
-                            "aspectRatio": "320:213"
-              },
-
+              "size": SIZE ,
               "body": {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                              {
-                                "type": "text",
-                                "text": place_name,
-                                "weight": "bold",
-                                "size": "sm",
-                                "wrap": True
-                              },
-                              {
-                                "type": "text",
-                                "text": 'booking 上評分 : ' + str(source_rating) ,
-                                "weight": "bold",
-                                "size": "sm",
-                                "wrap": True
-                              },
-                              {
-                                "type": "box",
-                                "layout": "baseline",
-                                "contents": generate_rating_star(star)
-                              },
-                            ],
-                            "spacing": "sm",
-                            "paddingAll": "13px"
-              },
 
+                "type": "box",
+                "layout": "vertical",
+
+                "contents": [
+                    {
+
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": [
+                            {
+                                "type": "image",
+                                "url": pic_link,
+                                "size": "5xl",
+                                "aspectMode": "cover",
+                                "aspectRatio": "150:196",
+                                "gravity": "center",
+                                "flex": 1
+                            },
+                            {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                    {
+                                        "type": "image",
+                                        "url": hotel_pics_url[0],
+                                        "size": "full",
+                                        "aspectMode": "cover",
+                                        "aspectRatio": "150:98",
+                                        "gravity": "center"
+                                    },
+                                    {
+                                        "type": "image",
+                                        "url": hotel_pics_url[1],
+                                        "size": "full",
+                                        "aspectMode": "cover",
+                                        "aspectRatio": "150:98",
+                                        "gravity": "center"
+                                    }
+                                ],
+                                "flex": 1
+                            }
+                        ]
+                    },
+
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [],
+                        "position": "absolute",
+                        "background": {
+                            "type": "linearGradient",
+                            "angle": "0deg",
+                            "endColor": "#00000000",
+                            "startColor": "#00000099"
+                        },
+                        "width": "100%",
+                        "height": "40%",
+                        "offsetBottom": "0px",
+                        "offsetStart": "0px",
+                        "offsetEnd": "0px"
+                    },
+
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                    {
+                                        "type": "box",
+                                        "layout": "horizontal",
+                                        "contents": [
+                                            {
+                                                "type": "text",
+                                                "text": place_name,
+                                                'decoration': 'underline',
+                                                'style': 'italic',
+                                                'weight': 'bold',
+                                                'wrap': True,
+                                                "size": "lg",
+                                                "color": "#ffffff"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "box",
+                                        "layout": "horizontal",
+                                        "contents": [
+                                            {
+                                                "type": "text",
+                                                "text": 'booking 上評分 : ' + str(source_rating),
+                                                'style': 'italic',
+                                                "size": "md",
+                                                "color": "#ffffff"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "box",
+                                        "layout": "baseline",
+                                        "contents": generate_rating_star(star , font_size='md')
+                                    },
+
+                                ],
+                                "spacing": "xs"
+                            }
+                        ],
+                        "position": "absolute",
+                        "offsetBottom": "0px",
+                        "offsetStart": "0px",
+                        "offsetEnd": "0px",
+                        "paddingAll": "20px"
+                    }
+                ],
+                "paddingAll": "0px"
+              }
+
+              ,
               "footer": {
 
                             "type": "box",
@@ -513,9 +610,7 @@ def button_template_generator(
 
         button = {
               "type": "bubble",
-
-              "size": "micro",
-
+              "size": SIZE,
               "hero": {
                             "type": "image",
                             "url": preview_pic_url if preview_pic_url and preview_pic_url[:5] == 'https'  else no_pic_url,
@@ -607,13 +702,12 @@ def button_template_generator(
         preview_pic_url = kwargs.get('preview_pic_url')
         name = kwargs.get('name')
         rating = kwargs.get('rating')
+        distance = kwargs.get('distance')
 
 
         button = {
               "type": "bubble",
-
-              "size": "micro",
-
+              "size": SIZE ,
               "hero": {
                             "type": "image",
                             "url": preview_pic_url if preview_pic_url and preview_pic_url[:5] == 'https'  else no_pic_url,
@@ -636,6 +730,13 @@ def button_template_generator(
                               {
                                 "type": "text",
                                 "text": 'Google 上評分 : ' + str(rating) ,
+                                "weight": "bold",
+                                "size": "sm",
+                                "wrap": True
+                              },
+                              {
+                                "type": "text",
+                                "text": f'距離您選擇的飯店{int(distance)}公尺遠',
                                 "weight": "bold",
                                 "size": "sm",
                                 "wrap": True
@@ -706,52 +807,120 @@ def button_template_generator(
 
         button = {
             "type": "bubble",
-            "size": "micro",
-            "hero": {
-                "type": "image",
-                "url": pic_link,
-                "size": "full",
-                "aspectMode": "cover",
-                "aspectRatio": "320:213"
-            },
+            "size": SIZE,
             "body": {
                 "type": "box",
                 "layout": "vertical",
                 "contents": [
                     {
-                        "type": "text",
-                        "text": str(queried_date),
-                        "weight": "bold",
-                        "size": "sm",
-                        "wrap": True
+                        "type": "image",
+                        "url": pic_link,
+                        "size": "full",
+                        "aspectMode": "cover",
+                        "aspectRatio": "1:1",
+                        "gravity": "center"
                     },
                     {
-                        "type": "text",
-                        "text": room_recommend,
-                        "weight": "bold",
-                        "size": "sm",
-                        "wrap": True
-                    }
-                    ,
-                    {
-                        "type": "text",
-                        "text": room_remainings,
-                        "weight": "bold",
-                        "size": "sm",
-                        "wrap": True
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [],
+                        "position": "absolute",
+                        "background": {
+                            "type": "linearGradient",
+                            "angle": "0deg",
+                            "endColor": "#00000000",
+                            "startColor": "#00000099"
+                        },
+                        "width": "100%",
+                        "height": "40%",
+                        "offsetBottom": "0px",
+                        "offsetStart": "0px",
+                        "offsetEnd": "0px"
                     },
                     {
-                        "type": "text",
-                        "text": "$" + str(price) + "TWD",
-                        "weight": "bold",
-                        "size": "sm",
-                        "wrap": True
+                        "type": "box",
+                        "layout": "horizontal",
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "vertical",
+                                "contents": [
+                                    {
+                                        "type": "box",
+                                        "layout": "horizontal",
+                                        "contents": [
+                                            {
+                                                "type": "text",
+                                                "text": str(queried_date),
+                                                'decoration': 'underline',
+                                                'style': 'italic',
+                                                "size": "md",
+                                                "color": "#ffffff"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "box",
+                                        "layout": "horizontal",
+                                        "contents": [
+                                            {
+                                                "type": "text",
+                                                "text": room_recommend,
+                                                'style': 'italic',
+                                                "size": "md",
+                                                "color": "#ffffff"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "box",
+                                        "layout": "horizontal",
+                                        "contents": [
+                                            {
+                                                "type": "box",
+                                                "layout": "baseline",
+                                                "contents": [
+                                                    {
+                                                        "type": "text",
+                                                        "text": "$" + str(price) + "TWD",
+                                                        "color": "#ffffff",
+                                                        "size": "xxl",
+                                                        'style': 'italic',
+                                                        "flex": 0,
+                                                        "align": "end"
+                                                    },
+                                                ],
+                                                "flex": 0,
+                                                "spacing": "lg"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "type": "box",
+                                        "layout": "horizontal",
+                                        "contents": [
+                                            {
+                                                "type": "text",
+                                                "text": room_remainings + "!",
+                                                "size": "md",
+                                                "color": "#00e0f0"
+                                            }
+                                        ]
+                                    },
+                                ],
+                                "spacing": "xs"
+                            }
+                        ],
+                        "position": "absolute",
+                        "offsetBottom": "0px",
+                        "offsetStart": "0px",
+                        "offsetEnd": "0px",
+                        "paddingAll": "20px"
                     }
                 ],
-                "spacing": "sm",
-                "paddingAll": "13px"
-            },
-
+                "paddingAll": "0px"
+            }
+            ,
             "footer": {
                 "type": "box",
                 "layout": "vertical",
@@ -814,12 +983,13 @@ def carousel_template_generator( temp_type ,
         ...
     ]
     '''
-    print(f"DEBUG : IN carousel_template_generator , temp_type = {temp_type}" )
+
+    #print(f"DEBUG : IN carousel_template_generator , temp_type = {temp_type}" )
 
     carousel_contents = {
         "type": "carousel",
         "contents": [button_template_generator(temp_type=temp_type , **kwargs )
-                     for kwargs in dict_list]
+                     for kwargs in dict_list if kwargs]
     }
 
     return carousel_contents
