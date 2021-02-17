@@ -33,7 +33,6 @@ def async_main_construct_step_by_hotel(hotels):
 
 
 
-# TODO : async search
 # Async for get hotel information
 async def async_get_search_result(resturant):
 
