@@ -11,7 +11,7 @@ from bot.generate_template import button_template_generator , carousel_template_
 from bot.string_comparing import find_common_word_2str
 from bot.density_analysis import get_place_latlng_by_gmaps
 from bot.object_filter import filter_store_by_criteria
-from bot.google_map_scraper import init_gmaps , extract_and_store_place_inform_to_database
+from bot.google_map_scraper import init_gmaps , GoogleMap_Scraper
 from bot.tools import lat_lng_to_x_y , x_y_to_lat_lng
 
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
@@ -37,16 +37,8 @@ from linebot.models import (
     TextSendMessage, # send text reply
     FlexSendMessage, # send flex-template reply
     LocationSendMessage, # send location map
+    ImageSendMessage,
 
-    # Template of message
-    ButtonsTemplate, # reply template of button
-    CarouselTemplate , # reply template of carousel
-    ImageCarouselTemplate , # reply template of image carousel
-
-    # Action in template
-    MessageTemplateAction, # detail message action in template
-    PostbackTemplateAction, # detail postback action in template
-    DatetimePickerTemplateAction # detail datetime action in template
 )
 
 # TODO　list :
@@ -341,7 +333,7 @@ def return_message(event,
         raise ValueError('No next type exist!!!')
 
     if next_type_header == 'place_name_input':
-        contents = '請輸入你所在位置(例如:民宿,飯店,景點..)或地址~ , 輸入完成後請靜待5~8秒鐘等待資料抓取~ (如沒回應 , 請點按"再查一次"的按鈕!)'
+        contents = '請輸入你所在位置(例如:民宿,飯店,景點..)或地址~ , 輸入完成後請靜待5~15秒鐘等待資料抓取~ (如沒回應 , 請點按"再查一次"的按鈕!)'
 
     elif next_type_header == 'hotel_name_input':
         contents = '請輸入你想住的飯店~ , 輸入完成後請靜待3~5秒鐘等待資料抓取~ (如沒回應 , 請再輸入一次!)'
@@ -430,6 +422,8 @@ def handle_postback(event):
                             client_obj=client_obj,
                             type_header=type_header)
 
+            # TODO: 一個小 Bugs , 如果在重新查詢後的 place_name_input , 按到了先前查詢的Resturant結果,會直接往另一個 fork : datetime selection 方向去!
+
 
     # BREAK POINT 1. 'datetime' and 'place_name_input' , if 'FoodOrHotel' == "N"
     # BREAK POINT 2. 'silence' and 'hotel_name_input' , if NeedRecommendOrNot == "N"
@@ -506,6 +500,11 @@ def handle_postback(event):
                             client_obj=client_obj,
                             type_header=type_header,
                             pre_postback_data=pre_postback_data)
+
+        elif 'PlotPriceTrend' in pre_postback_data:
+            # TODO: plot price trend chart
+            # Using pyimgur :  https://ithelp.ithome.com.tw/questions/10193987
+            pass
 
         # for returning to recommend list
         elif 'ReturnRecommend' in pre_postback_data:
@@ -833,6 +832,7 @@ def type_header_backward(client_obj , target_type = None):
 
 def get_nearby_resturant(RandomChoose ,
                          rating_threshold = GMAP_RATING_THRESHOLD ,
+                         NEARBY_CRITERIA = NEARBY_CRITERIA,
                          admin_area = None ,
                          hotel_name = None ,
                          place_name = None , ):
@@ -871,22 +871,31 @@ def get_nearby_resturant(RandomChoose ,
 
         place_latlng = x_y_to_lat_lng(place_x_y)
 
-        result = maps.places_nearby(keyword='餐廳',
-                                    location=place_latlng,
-                                    radius=NEARBY_CRITERIA,
-                                    language='zh-TW')  # get stores list nearby
 
-        result = result['results']
+
+        while True and NEARBY_CRITERIA<20000:
+
+            print(f'DEBUG NEARBY_CRITERIA now : {NEARBY_CRITERIA}')
+            result = maps.places_nearby(keyword='餐廳',
+                                        location=place_latlng,
+                                        radius=NEARBY_CRITERIA,
+                                        language='zh-TW')  # get stores list nearby
+            result = result['results']
+            if result:
+                break
+
+            NEARBY_CRITERIA = 2*NEARBY_CRITERIA
+
         select_num = min(RandomChoose - len(nearby_resturants) , len(result)) # if the num of search result < num need to compensate , set select num equal to min of them
 
         for place_inform in random.sample( result , select_num ):
 
             # scrape near_by resturants and store into SQL
-            store_obj = extract_and_store_place_inform_to_database(maps = maps,
-                                                                   place_inform = place_inform,
-                                                                   admin_area = admin_area,
-                                                                   place_type = 'resturant',
-                                                                   place_sub_type = 'resturant')
+            store_obj = GoogleMap_Scraper.extract_and_store_place_inform_to_database(maps = maps,
+                                                                                     place_inform = place_inform,
+                                                                                     admin_area = admin_area,
+                                                                                     place_type = 'resturant',
+                                                                                     place_sub_type = 'resturant')
 
             nearby_resturants.append(store_obj)
 
@@ -894,12 +903,15 @@ def get_nearby_resturant(RandomChoose ,
         nearby_resturants = random.sample( nearby_resturants , RandomChoose )
 
 
+
     dict_list = async_get_search_result_by_resturant(nearby_resturants) # async scrape web_preview of all restuant
 
     # calculate the distance from hotel.
     for dict in dict_list:
+
         resturant_x_y = dict.get('position_xy')
-        distance_resturant = distance(place_x_y,resturant_x_y)
+        print(f'DEBUG in distance : {place_x_y},{resturant_x_y}')
+        distance_resturant = distance(place_x_y , resturant_x_y)
         dict.update({'distance' : distance_resturant})
 
     return dict_list
