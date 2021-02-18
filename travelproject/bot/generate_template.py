@@ -606,6 +606,7 @@ def button_template_generator(
         preview_pic_url = kwargs.get('preview_pic_url')
         name = kwargs.get('name')
         rating = kwargs.get('rating')
+        distance = kwargs.get('distance')
 
 
         button = {
@@ -633,6 +634,13 @@ def button_template_generator(
                               {
                                 "type": "text",
                                 "text": 'Google 上評分 : ' + str(rating) ,
+                                "weight": "bold",
+                                "size": "sm",
+                                "wrap": True
+                              },
+                              {
+                                "type": "text",
+                                "text": f'距離您輸入的地點{int(distance)}公尺遠',
                                 "weight": "bold",
                                 "size": "sm",
                                 "wrap": True
@@ -960,7 +968,17 @@ def button_template_generator(
                         }
 
                     },
+                    {
+                        "type": "button",
+                        "style": "link",
+                        "height": "sm",
+                        "action": {
+                            "type": "postback",
+                            "label": "看看近期價格趨勢!",
+                            "data": f'{temp_type}&PlotPriceTrend'
+                        }
 
+                    },
                     {
                         "type": "button",
                         "style": "link",
