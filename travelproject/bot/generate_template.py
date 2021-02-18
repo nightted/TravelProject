@@ -559,6 +559,17 @@ def button_template_generator(
                                     "height": "sm",
                                     "action": {
                                         "type": "postback",
+                                        "label": "飯店在哪裡呢?",
+                                        "data": f"{temp_type}&MapShow_{place_name}"
+                                        # special change the header name
+                                    }
+                                },
+                                {
+                                    "type": "button",
+                                    "style": "link",
+                                    "height": "sm",
+                                    "action": {
+                                        "type": "postback",
                                         "label": "看當天房況!",
                                         # 這邊 postback data 是要找出 filtered Hotel instance ,
                                         # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
@@ -575,17 +586,6 @@ def button_template_generator(
                                         "data": f"{temp_type}&FoodRecommend_{place_name}"  # special change the header name
                                     }
                                 },
-                                {
-                                    "type": "button",
-                                    "style": "link",
-                                    "height": "sm",
-                                    "action": {
-                                        "type": "postback",
-                                        "label": "看地圖?",
-                                        "data": f"{temp_type}&MapShow_{place_name}"
-                                        # special change the header name
-                                    }
-                                }
                             ],
 
                             "flex": 0
@@ -612,11 +612,11 @@ def button_template_generator(
               "type": "bubble",
               "size": SIZE,
               "hero": {
-                            "type": "image",
-                            "url": preview_pic_url if preview_pic_url and preview_pic_url[:5] == 'https'  else no_pic_url,
-                            "size": "full",
-                            "aspectMode": "cover",
-                            "aspectRatio": "320:213"
+                        "type": "image",
+                        "url": preview_pic_url if preview_pic_url and preview_pic_url[:5] == 'https'  else no_pic_url,
+                        "size": "full",
+                        "aspectMode": "cover",
+                        "aspectRatio": "320:213"
               },
 
               "body": {
@@ -654,10 +654,21 @@ def button_template_generator(
                                     "height": "sm",
                                     "action": {
                                         "type": "postback",
+                                        "label": "餐廳在哪裡呢?",
+                                        "data": f"{temp_type}&MapShow_{name}"
+                                        # special change the header name
+                                    }
+                                },
+                                {
+                                    "type": "button",
+                                    "style": "link",
+                                    "height": "sm",
+                                    "action": {
+                                        "type": "postback",
                                         "label": "再查一次?",
                                         # 這邊 postback data 是要找出 filtered Hotel instance ,
                                         # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
-                                        "data": f"{temp_type}&return_PlaceNameInput",
+                                        "data": f"{temp_type}&ReturnPlaceNameInput",
                                     }
                                 },
                                 {
@@ -669,7 +680,7 @@ def button_template_generator(
                                         "label": "改看飯店?",
                                         # 這邊 postback data 是要找出 filtered Hotel instance ,
                                         # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
-                                        "data": f"{temp_type}&return_FoodOrHotel",
+                                        "data": f"{temp_type}&ReturnFoodOrHotel",
                                     }
                                 },
                                 {
@@ -758,10 +769,21 @@ def button_template_generator(
                                     "height": "sm",
                                     "action": {
                                         "type": "postback",
+                                        "label": "餐廳在哪裡呢?",
+                                        "data": f"{temp_type}&MapShow_{name}"
+                                        # special change the header name
+                                    }
+                                },
+                                {
+                                    "type": "button",
+                                    "style": "link",
+                                    "height": "sm",
+                                    "action": {
+                                        "type": "postback",
                                         "label": "看其他飯店?",
                                         # 這邊 postback data 是要找出 filtered Hotel instance ,
                                         # 並 call instance method : construct_instance_attr (args : queried_date , num_people , num_room) !
-                                        "data": f"{temp_type}&return_recommend",
+                                        "data": f"{temp_type}&ReturnRecommend",
                                     }
                                 },
                                 {
@@ -946,7 +968,7 @@ def button_template_generator(
                         "action": {
                             "type": "postback",
                             "label": "其他推薦飯店?",
-                            "data": f'{temp_type}&return_recommend'
+                            "data": f'{temp_type}&ReturnRecommend'
                         }
                     },
                     {
@@ -956,7 +978,7 @@ def button_template_generator(
                         "action": {
                             "type": "postback",
                             "label": "重新搜尋?",
-                            "data": f'{temp_type}&return_search'
+                            "data": f'{temp_type}&ReturnSearch'
                         }
                     }
                 ],
