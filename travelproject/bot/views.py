@@ -447,13 +447,13 @@ def handle_postback(event):
 
     elif type_header == 'recommend':
 
-        action_type = pre_postback_data.split('_')[0]  # extract action
         save_attr_to_database(type_header, client_obj, pre_postback_data)
 
-        if action_type == 'MapShow':
+        if 'MapShow' in pre_postback_data:
             return_location(event,
                             client_obj=client_obj,
-                            type_header=type_header)
+                            type_header=type_header,
+                            pre_postback_data=pre_postback_data)
         else:
             return_postback(event,
                             client_obj=client_obj,
@@ -469,8 +469,14 @@ def handle_postback(event):
          Not saving attrs here!
         '''
 
+        if 'MapShow' in pre_postback_data:
+            return_location(event,
+                            client_obj=client_obj,
+                            type_header=type_header,
+                            pre_postback_data=pre_postback_data)
+
         # for returning tp re-search food
-        if 'return_PlaceNameInput' in pre_postback_data:
+        elif 'ReturnPlaceNameInput' in pre_postback_data:
 
             type_header = type_header_backward(client_obj, target_type='FoodOrHotel')
             return_message(event,
@@ -478,7 +484,7 @@ def handle_postback(event):
                            type_header=type_header)
 
         # for returning to find food or find hotel
-        elif 'return_FoodOrHotel' in pre_postback_data:
+        elif 'ReturnFoodOrHotel' in pre_postback_data:
 
             type_header = type_header_backward(client_obj, target_type='admin_area')
             other_msg = '請重新選擇您要找飯店還是找美食~'
@@ -494,27 +500,35 @@ def handle_postback(event):
          Not saving attrs here!
         '''
 
+        if 'MapShow' in pre_postback_data:
+
+            return_location(event,
+                            client_obj=client_obj,
+                            type_header=type_header,
+                            pre_postback_data=pre_postback_data)
+
         # for returning to recommend list
-        if 'return_recommend' in pre_postback_data:
+        elif 'ReturnRecommend' in pre_postback_data:
 
             # if it's not recommend mode originally , keep going collecting user data.
             if 'recommend' not in client_obj.type_record:
                 type_header = type_header_backward(client_obj, target_type='num_people')
             else:
                 type_header = type_header_backward(client_obj, target_type='sightseeing')
-            other_msg = ''
+
+            return_postback(event,
+                            client_obj=client_obj,
+                            type_header=type_header)
 
         # for returning to beginning of search
-        elif 'return_search' in pre_postback_data:
+        elif 'ReturnSearch' in pre_postback_data:
 
             type_header = type_header_backward(client_obj, target_type='entering_message')
             other_msg = '請重新選擇您要去的縣市~'
-
-
-        return_postback(event,
-                        client_obj=client_obj,
-                        type_header=type_header,
-                        other_msg=other_msg)
+            return_postback(event,
+                            client_obj=client_obj,
+                            type_header=type_header,
+                            other_msg=other_msg)
 
     # else , directly return postback .
     else:
@@ -646,9 +660,10 @@ def return_location(event,
                     type_header,
                     **other_msg):
 
-    if type_header == 'recommend':
+    if type_header in ['recommend','food_recommend_place','food_recommend_hotel']:
 
-        place_name = client_obj.recommend.split('_')[1]
+        pre_postback_data = other_msg.get('pre_postback_data')
+        place_name = pre_postback_data.split('_')[1]
         lat , lng , address = get_latlng_address(place_name)
 
 
