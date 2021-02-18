@@ -29,6 +29,312 @@ def init_gmaps():
 
     return maps
 
+class GoogleMap_Scraper:
+
+    def __init__(self):
+
+        self.map = init_gmaps()
+
+    @classmethod
+    def extract_address_by_geocode(cls, maps, name):
+
+        '''
+        function : address extraction
+
+        input :
+          #maps : google map client
+          #store_name : store you want to extract address
+
+        rtype :
+          #address : address of store
+        '''
+        geocode_result = maps.geocode(name, language='zh-TW')
+        lnglat = geocode_result[0]['geometry']['location']
+
+        # firstly check place in taiwan or not
+        if check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
+            address = cls.geocode_subprocess(geocode_result)
+            return address
+        else:
+            print('[WARNING] This place is not in Taiwan!')
+
+        return None
+
+    @classmethod
+    def geocode_subprocess(cls, geocode_result):
+        '''
+        function : sub-process of address extraction
+
+        input :
+          #maps : google map client
+          #store_name : store you want to extract address
+
+        rtype :
+          #address : address of store
+          #lnglat : latitude , longitude of store
+
+        '''
+
+        # administrative level :
+        # postal_code(區碼) > country(國) > administrative_area_level_1(市) > administrative_area_level_2 > administrative_area_level_3(區) > route(路街巷) > street_number(號) > subpremise(樓)
+        administrative_level = {
+            "postal_code_suffix": 10,
+            "postal_code": 9,
+            "country": 8,
+            "administrative_area_level_1": 7,
+            "administrative_area_level_2": 6,
+            "administrative_area_level_3": 5,
+            "locality": 4,
+            "route": 3,
+            "street_number": 2,
+            "subpremise": 1,
+            "establishment": 0,
+            "neighborhood": -1
+        }
+
+        # There's 2 condition return empty address
+        # 1. geocoding can't find the store name
+        # 2. result of geocoding for administrative level goes wrong
+        # 3.(in outer function) place not in taiwan !
+
+        if not geocode_result:
+
+            print('[WARNING] No such hotel found in google map !')
+            return None
+
+        try:
+            address = [level_ad['long_name'] for level_ad in sorted(geocode_result[0]['address_components']
+                                                                    , reverse=True
+                                                                    , key=lambda x: administrative_level[x['types'][0]])
+                       if not find_english_char(level_ad['long_name'])]  # get address by administrative level
+        # if the administrative level goes wrong
+        except KeyError:
+
+            print('Something wrong with the address!')
+            return None
+
+        address = ''.join(address)  # combine address by administrative level
+        #print("DEBUG:", geocode_result[0]['formatted_address'])
+        address = address + str(get_digits(geocode_result[0]['formatted_address'])[0]) + '號' if '號' not in address else address  # if not contain '號' ,get No. in formatted_address
+        address = address[3:]  # remove 7XX postal code
+
+        return address
+
+    @classmethod
+    def address_checker(cls ,
+                        maps ,
+                        place_inform ,
+                        name = None ):
+
+        try:
+            # In this part , there's 2 kind of ERROR here
+            # 1. The address we got contains English words (We need chinese!!!)
+            # 2. Can't get the address directly from store_inform dictionary (KeyError)
+            # when encounters this 2 condition , use the geocode() to get address again.
+
+            address = place_inform['plus_code']['compound_code'].split(' ')[-1] + place_inform['vicinity']
+            if find_english_char(address):
+                # In this part , there's also 2 kind of WARNINGs here
+                # 1. The geocode returned isn't in locality
+                # 2. The geocode can't find any result (including truly not found or admin level fail)
+                # when encounters this 2 condition , use the original address we got.
+
+                print(f'[ENGLISH ERROR] {name} change to geocode !')
+                extract_address = cls.extract_address_by_geocode(maps, name)
+                address = extract_address if extract_address else address
+
+        # if key error when finding address , special handling
+        except KeyError:
+
+            print(f'[KEYERROR ERROR] {name} change to geocode !')
+            extract_address = cls.extract_address_by_geocode(maps, name)
+            address = extract_address if extract_address != None else address
+
+        if '號' in address:
+            address = address.split('號')[0] + '號'  # remove following char after '號' and 70X at head , EX : 700中西區海安路256號一樓 => 中西區海安路256號
+
+        return address
+
+    @classmethod
+    def extract_and_store_place_inform_to_database(cls,
+                                                   maps,
+                                                   place_inform,
+                                                   admin_area,
+                                                   place_type,
+                                                   place_sub_type):
+
+        place_class_hash = {
+            'hotel': Hotel,
+            'resturant': Resturant,
+            'station': Station,
+            'sightseeing': Sightseeing,
+        }
+
+        lat_lng = place_inform['geometry']['location']
+        lat, lng = lat_lng['lat'], lat_lng["lng"]
+        name = place_inform['name']
+        place_id = place_inform['place_id']
+        rating = place_inform.get('rating', None)
+
+        # set rating = 0.0 for non-rating store.
+        if not rating:
+            rating = 0.0
+            print(f"[WARNING] {name} doesn't contains rating !")
+
+        address = cls.address_checker(maps, place_inform, name)  # special handle for address
+
+        information = {
+            'place_type': place_type,
+            'place_sub_type': place_sub_type,
+            'name': name,
+            'lng': lng,
+            'lat': lat,
+            'rating': rating,
+            'admin_area': admin_area,
+            'address': address,
+            'place_id': place_id
+        }
+
+        # NOTE THAT , the store_obj generate here is NOT save to database yet !
+        try:
+            store_obj = place_class_hash[place_type].create_obj_by_dict(**information)
+        except KeyError:
+            raise NameError('Need to specify place CLASS NAME in class_hash table!')
+
+        return store_obj
+
+
+
+    # get store information with location , keyword , search radius
+    def store_scraper(self,
+                      keyword,
+                      location,
+                      admin_area,
+                      radius,
+                      next_page_token,
+                      objects,
+                      place_type=None ,
+                      place_sub_type=None
+                                            ):
+        '''
+        function : get stores with keyword in some radius
+
+        input:
+          #keyword : keyword of store you want to search
+
+          #location : search center
+
+          #location_admin : administrative name of area
+
+          #radius : search radius
+
+          #next_page_token : to get data of page 20~40 , 40~60
+
+          #objects : objects already storage (list)
+
+          #place_type : main type of place (resturant , station , sightseeing , hotel)
+
+          #place_sub_type : sub type of place (EEL , porkrice ...)
+
+        rtype:
+          #next_page_token : to get data of page 20~40 , 40~60
+
+          #objects : store or hotel objects found
+
+        '''
+
+        if not place_type:
+            raise NameError('No store type assigned!')
+
+        if objects == None:
+            objects = []
+
+        result = self.maps.places_nearby(page_token=next_page_token,
+                                         keyword=keyword,
+                                         location=location,
+                                         radius=radius,
+                                         language='zh-TW')  # get stores list nearby
+
+        for place_inform in result['results']:
+
+            store_obj = self.extract_and_store_place_inform_to_database(self.maps,
+                                                                        place_inform = place_inform,
+                                                                        admin_area = admin_area,
+                                                                        place_type = place_type,
+                                                                        place_sub_type = place_sub_type)
+
+            if store_obj not in objects:
+                objects.append(store_obj)
+
+        next_page_token = result.get('next_page_token', None)  # get if token exsit or return None
+
+        return next_page_token, objects
+
+
+
+    # get store information with location , keyword , search radius (plus the change pages and move search location)
+    # 1 ranging is across 2 * radius in each sides
+    # EX : radius = 1000 , ranging = 1 , so the spanning region is 2000 in top,bottom,left,right directions , total scan area = 4000 X 4000 .
+    def moving_store_scraper(self,
+                             keyword,
+                             search_center,
+                             admin_area,
+                             radius,
+                             ranging,
+                             next_page_token=None,
+                             objects=None,
+                             place_type=None,
+                             place_sub_type=None,
+                             mode="max_area"):
+        '''
+        function : get stores with keyword in range of grid
+
+        input:
+          #maps : googlmaps api objects (must need)
+
+          #keyword : keyword of store you want to search
+
+          #location : search center
+
+          #radius : search radius
+
+          #next_page_token : to get data of page 20~40 , 40~60
+
+          #objects : objects already storage (list)
+
+          #place_type : main type of place (restaurant , station , sightseeing , hotel)
+
+          #place_sub_type : sub type of place (EEL , porkrice ...)
+        rtype :
+          #objects : store or hotel objects found
+
+        '''
+        maps = init_gmaps() # initial maps
+        search_points = grid_generator(search_center, radius, ranging, mode=mode)
+
+        for idx, location in enumerate(search_points):
+
+            print(f'finish [{idx + 1}/{len(search_points)}] parts !')
+            while True:  # change page
+                next_page_token, objects = self.store_scraper(keyword,
+                                                              location,
+                                                              admin_area,
+                                                              radius,
+                                                              next_page_token=next_page_token,
+                                                              objects=objects,
+                                                              place_type=place_type,
+                                                              place_sub_type = place_sub_type)
+                if next_page_token == None:
+                    break
+                t.sleep(3)  # set time sleep to avoid request too often !
+
+        return objects
+
+
+
+
+
+
 # Check the place is in target admin_area or not
 def check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
 
@@ -42,7 +348,6 @@ def check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
 
     return Admin_area_range_lng[0] < lng < Admin_area_range_lng[1] and Admin_area_range_lat[0] < lat < \
            Admin_area_range_lat[1]
-
 
 # generate grid of position by radius
 def grid_generator(location, radius, ranging, mode="max_area"):
@@ -92,302 +397,6 @@ def grid_generator(location, radius, ranging, mode="max_area"):
         return grid_outer + grid_inner + grid_down + grid_aside
 
     return grid_outer
-
-
-def extract_address_by_geocode(maps, name):
-    '''
-    function : address extraction
-
-    input :
-      #maps : google map client
-      #store_name : store you want to extract address
-
-    rtype :
-      #address : address of store
-    '''
-    geocode_result = maps.geocode(name, language='zh-TW')
-    lnglat = geocode_result[0]['geometry']['location']
-
-    # firstly check place in taiwan or not
-    if check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
-        address = geocode_subprocess(geocode_result)
-        return address
-    else:
-        print('[WARNING] This place is not in Taiwan!')
-
-    return None
-
-
-def geocode_subprocess(geocode_result):
-    '''
-    function : sub-process of address extraction
-
-    input :
-      #maps : google map client
-      #store_name : store you want to extract address
-
-    rtype :
-      #address : address of store
-      #lnglat : latitude , longitude of store
-
-    '''
-
-    # administrative level :
-    # postal_code(區碼) > country(國) > administrative_area_level_1(市) > administrative_area_level_2 > administrative_area_level_3(區) > route(路街巷) > street_number(號) > subpremise(樓)
-    administrative_level = {
-        "postal_code_suffix": 10,
-        "postal_code": 9,
-        "country": 8,
-        "administrative_area_level_1": 7,
-        "administrative_area_level_2": 6,
-        "administrative_area_level_3": 5,
-        "locality": 4,
-        "route": 3,
-        "street_number": 2,
-        "subpremise": 1,
-        "establishment": 0,
-        "neighborhood": -1
-    }
-
-    # There's 2 condition return empty address
-    # 1. geocoding can't find the store name
-    # 2. result of geocoding for administrative level goes wrong
-    # 3.(in outer function) place not in taiwan !
-
-    if not geocode_result:
-
-        print('[WARNING] No such hotel found in google map !')
-        return None
-
-    try:
-        address = [level_ad['long_name'] for level_ad in sorted(geocode_result[0]['address_components']
-                                                                , reverse=True
-                                                                , key=lambda x: administrative_level[x['types'][0]])
-                   if not find_english_char(level_ad['long_name'])]  # get address by administrative level
-    # if the administrative level goes wrong
-    except KeyError:
-
-        print('Something wrong with the address!')
-        return None
-
-    address = ''.join(address)  # combine address by administrative level
-    #print("DEBUG:", geocode_result[0]['formatted_address'])
-    address = address + str(get_digits(geocode_result[0]['formatted_address'])[0]) + '號' if '號' not in address else address  # if not contain '號' ,get No. in formatted_address
-    address = address[3:]  # remove 7XX postal code
-
-    return address
-
-
-def address_checker(maps , place_inform , name = None ):
-
-    try:
-        # In this part , there's 2 kind of ERROR here
-        # 1. The address we got contains English words (We need chinese!!!)
-        # 2. Can't get the address directly from store_inform dictionary (KeyError)
-        # when encounters this 2 condition , use the geocode() to get address again.
-
-        address = place_inform['plus_code']['compound_code'].split(' ')[-1] + place_inform['vicinity']
-        if find_english_char(address):
-            # In this part , there's also 2 kind of WARNINGs here
-            # 1. The geocode returned isn't in locality
-            # 2. The geocode can't find any result (including truly not found or admin level fail)
-            # when encounters this 2 condition , use the original address we got.
-
-            print(f'[ENGLISH ERROR] {name} change to geocode !')
-            extract_address = extract_address_by_geocode(maps, name)
-            address = extract_address if extract_address else address
-
-    # if key error when finding address , special handling
-    except KeyError:
-
-        print(f'[KEYERROR ERROR] {name} change to geocode !')
-        extract_address = extract_address_by_geocode(maps, name)
-        address = extract_address if extract_address != None else address
-
-    if '號' in address:
-        address = address.split('號')[0] + '號'  # remove following char after '號' and 70X at head , EX : 700中西區海安路256號一樓 => 中西區海安路256號
-
-    return address
-
-
-def extract_and_store_place_inform_to_database(maps,
-                                               place_inform,
-                                               admin_area,
-                                               place_type,
-                                               place_sub_type):
-
-    place_class_hash = {
-        'hotel': Hotel,
-        'resturant': Resturant,
-        'station': Station,
-        'sightseeing': Sightseeing,
-    }
-
-    lat_lng = place_inform['geometry']['location']
-    lat, lng = lat_lng['lat'], lat_lng["lng"]
-    name = place_inform['name']
-    place_id = place_inform['place_id']
-    rating = place_inform.get('rating', None)
-
-    # set rating = 0.0 for non-rating store.
-    if not rating:
-        rating = 0.0
-        print(f"[WARNING] {name} doesn't contains rating !")
-
-    address = address_checker(maps, place_inform, name)  # special handle for address
-
-    information = {
-        'place_type': place_type,
-        'place_sub_type': place_sub_type,
-        'name': name,
-        'lng': lng,
-        'lat': lat,
-        'rating': rating,
-        'admin_area': admin_area,
-        'address': address,
-        'place_id': place_id
-    }
-
-    # NOTE THAT , the store_obj generate here is NOT save to database yet !
-    try:
-        store_obj = place_class_hash[place_type].create_obj_by_dict(**information)
-    except KeyError:
-        raise NameError('Need to specify place CLASS NAME in class_hash table!')
-
-    return store_obj
-
-
-
-# get store information with location , keyword , search radius
-def store_scraper(maps,
-                  keyword,
-                  location,
-                  admin_area,
-                  radius,
-                  next_page_token,
-                  objects,
-                  place_type=None ,
-                  place_sub_type=None
-                                        ):
-    '''
-    function : get stores with keyword in some radius
-
-    input:
-      #keyword : keyword of store you want to search
-
-      #location : search center
-
-      #location_admin : administrative name of area
-
-      #radius : search radius
-
-      #next_page_token : to get data of page 20~40 , 40~60
-
-      #objects : objects already storage (list)
-
-      #place_type : main type of place (resturant , station , sightseeing , hotel)
-
-      #place_sub_type : sub type of place (EEL , porkrice ...)
-
-    rtype:
-      #next_page_token : to get data of page 20~40 , 40~60
-
-      #objects : store or hotel objects found
-
-    '''
-
-    if not place_type:
-        raise NameError('No store type assigned!')
-
-    if objects == None:
-        objects = []
-
-    result = maps.places_nearby(page_token=next_page_token,
-                                keyword=keyword,
-                                location=location,
-                                radius=radius,
-                                language='zh-TW')  # get stores list nearby
-
-    for place_inform in result['results']:
-
-        store_obj = extract_and_store_place_inform_to_database(maps,
-                                                               place_inform = place_inform,
-                                                               admin_area = admin_area,
-                                                               place_type = place_type,
-                                                               place_sub_type = place_sub_type)
-
-        if store_obj not in objects:
-            objects.append(store_obj)
-
-    next_page_token = result.get('next_page_token', None)  # get if token exsit or return None
-
-    return next_page_token, objects
-
-
-
-# get store information with location , keyword , search radius (plus the change pages and move search location)
-# 1 ranging is across 2 * radius in each sides
-# EX : radius = 1000 , ranging = 1 , so the spanning region is 2000 in top,bottom,left,right directions , total scan area = 4000 X 4000 .
-def moving_store_scraper(keyword,
-                         search_center,
-                         admin_area,
-                         radius,
-                         ranging,
-                         next_page_token=None,
-                         objects=None,
-                         place_type=None,
-                         place_sub_type=None,
-                         mode="max_area"):
-    '''
-    function : get stores with keyword in range of grid
-
-    input:
-      #maps : googlmaps api objects (must need)
-
-      #keyword : keyword of store you want to search
-
-      #location : search center
-
-      #radius : search radius
-
-      #next_page_token : to get data of page 20~40 , 40~60
-
-      #objects : objects already storage (list)
-
-      #place_type : main type of place (restaurant , station , sightseeing , hotel)
-
-      #place_sub_type : sub type of place (EEL , porkrice ...)
-    rtype :
-      #objects : store or hotel objects found
-
-    '''
-    maps = init_gmaps() # initial maps
-    search_points = grid_generator(search_center, radius, ranging, mode=mode)
-
-    for idx, location in enumerate(search_points):
-
-        print(f'finish [{idx + 1}/{len(search_points)}] parts !')
-        while True:  # change page
-            next_page_token, objects = store_scraper(maps,
-                                                     keyword,
-                                                     location,
-                                                     admin_area,
-                                                     radius,
-                                                     next_page_token=next_page_token,
-                                                     objects=objects,
-                                                     place_type=place_type,
-                                                     place_sub_type = place_sub_type)
-            if next_page_token == None:
-                break
-            t.sleep(3)  # set time sleep to avoid request too often !
-
-    return objects
-
-def update_new_stores(**kwargs):
-    '''
-    wait extend ...
-    '''
-    pass
 
 
 # store weighting
