@@ -53,7 +53,27 @@ def test_hotel_instant( test_len ):
                                     num_people=2
                                   )
 
+class foo():
+
+    def __init__(self):
+        pass
+
+    @classmethod
+    def printfoo(cls):
+        return cls.fooo()
+
+    @classmethod
+    def fooo(cls):
+        return "foo!"
 
 if __name__ == '__main__':
 
-    Line_client.objects.all().delete()
+    maps = init_gmaps()
+    res = maps.places_nearby(keyword='餐廳',
+                            location={'lng': 120.4703258, 'lat': 23.1060822},
+                            radius=500,
+                            language='zh-TW')
+
+    print(res)
+
+
