@@ -212,12 +212,15 @@ class Hotel(Place):
                     raise NameError('Need to assign date ! ')
 
                 # if the day in range is before today , re-range day_range
+                day_range_forward = day_range
                 if day_to_datetime(queried_date , format='datetime') - datetime.timedelta(days=day_range) < datetime.datetime.now():
-                    day_range = (day_to_datetime(queried_date , format='datetime') - datetime.datetime.now()).days
+                    day_range_backward = (day_to_datetime(queried_date , format='datetime') - datetime.datetime.now()).days
+                else:
+                    day_range_forward = day_range_backward = day_range
 
                 # try to access exist instant data from SQL
                 exist_objs , unfinished_queried_date  = [] , []
-                for day in generate_day_range(queried_date , day_range):
+                for day in generate_day_range(queried_date , day_range_forward , day_range_backward):
 
                     try:
                         exist_objs.append( Hotel_Instance.objects.get(
@@ -252,6 +255,8 @@ class Hotel(Place):
 
                         instant_dict.update({'num_rooms' : num_rooms ,
                                              'num_people' : num_people }) # add # rooms and people into data dicts
+
+                        # update instance obj to database
                         instant_obj = Hotel_Instance.create_objects(**instant_dict , hotel = self) # (Done , due to datetime format and datefield auto_now_add) : BUG in Hotel_instance __eq__ function !!!
                         un_exist_objs.append(instant_obj)
 
@@ -292,17 +297,25 @@ class Hotel_Instance(models.Model):
     @classmethod
     def create_objects(cls , **instant_dict):
 
-        obj = cls(**instant_dict)
+        # check if type of queried_date is "datetime"
+        queried_date = instant_dict.get('queried_date')
+        if isinstance(queried_date , str):
+            queried_date = day_to_datetime(queried_date)
+            instant_dict['queried_date'] = queried_date
 
+        assert type(instant_dict['queried_date']) != type(str)
+
+        obj = cls(**instant_dict)
         if obj not in cls.objects.all():
             obj.save() # if not has same data in database , update it .
+
         return obj
 
     def __eq__(self , other):
 
         return self.hotel == other.hotel \
                and self.query_date == other.query_date \
-               and day_to_datetime(self.queried_date) == other.queried_date \
+               and self.queried_date == other.queried_date \
                and self.price == other.price \
                and self.room_recommend == other.room_recommend
 
