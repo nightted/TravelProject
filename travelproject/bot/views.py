@@ -2,6 +2,8 @@ from django.shortcuts import render
 import configparser
 import os
 import random
+import matplotlib.pyplot as plt
+import pyimgur
 
 from bot.async_scraper import async_get_search_result_by_resturant
 from bot.models import *
@@ -502,9 +504,14 @@ def handle_postback(event):
                             pre_postback_data=pre_postback_data)
 
         elif 'PlotPriceTrend' in pre_postback_data:
+
+
             # TODO: plot price trend chart
             # Using pyimgur :  https://ithelp.ithome.com.tw/questions/10193987
-            pass
+
+            return_PriceTrend(event,
+                              client_obj,
+                              type_header)
 
         # for returning to recommend list
         elif 'ReturnRecommend' in pre_postback_data:
@@ -676,6 +683,55 @@ def return_location(event,
         )
     )
 
+# return Price-trend Image-message of hotel
+def return_PriceTrend(event,
+                      client_obj, # 可直接在 reply function 中取用 client 即時 data !
+                      type_header,
+                      **other_msg):
+
+    config_imgur = configparser.ConfigParser()
+    config_file = os.path.join(os.path.dirname(__file__),'config_imgur.ini')
+    config_imgur.read(config_file)
+
+    CLIENT_ID = config_imgur['secret']['client_id']
+    CLIENT_SECRET = config_imgur['secret']['client_secret']
+
+    if type_header == 'instant':
+
+        dates , prices = [] , []
+        dict_list = get_hotel_instance(client_obj , long_range_trend=True)
+        for dict in dict_list:
+            dates.append(dict.get('queried_date'))
+            price = 0 if not dict.get('price') else dict.get('price')
+            prices.append(price)
+
+        queried_date = client_obj.queried_date
+        hotel_name = client_obj.recommend if client_obj.recommend else client_obj.hotel_name_input
+        plt.plot(dates,prices)
+        plt.xticks(rotation=90)  # Rotates X-Axis Ticks by 45-degrees
+
+        img_path = f'bot/trend_img/{hotel_name}_{queried_date}.png'
+        if os.path.isfile(img_path):
+            print(f"File exist!!!")
+        else:
+            plt.savefig(img_path)
+
+        im = pyimgur.Imgur(client_id=CLIENT_ID,client_secret=CLIENT_SECRET)
+        uploaded_img = im.upload_image(img_path , title = 'Uploaded with PyImgur')
+        img_URL = uploaded_img.link
+
+
+
+
+
+    line_bot_api.reply_message(
+        event.reply_token,
+        ImageSendMessage(
+           original_content_url=img_URL,
+           preview_image_url=img_URL,
+        )
+    )
+
 
 
 def get_latlng_address(place_name):
@@ -727,7 +783,7 @@ def get_recommend_hotels(client_obj):
     return dict_list
 
 
-def get_hotel_instance(client_obj):
+def get_hotel_instance(client_obj, long_range_trend = False):
 
     if getattr(client_obj , 'recommend'):
         selected_name = getattr(client_obj , 'recommend')
@@ -739,18 +795,23 @@ def get_hotel_instance(client_obj):
     else:
         raise ValueError('No fitting name of hotel!!')
 
-    selected_hotel = Hotel.objects.get(source_name=selected_name)
+    selected_hotel = Hotel.objects.get(source_name=selected_name) # get target hotel object
     queried_date = getattr(client_obj , 'queried_date')
     num_rooms = getattr(client_obj , 'num_rooms')
     num_people = getattr(client_obj , 'num_people')
 
+    day_range = 7 if long_range_trend else 3
+
     instant_objs = selected_hotel.construct_instant_attr(queried_date = queried_date ,
+                                                         day_range=day_range,
                                                          num_people = num_people ,
                                                          num_rooms = num_rooms)
+
     pic_link = getattr(selected_hotel , 'pic_link')
 
     dict_list = []
-    #print([type(obj.queried_date) for obj in instant_objs])
+
+
     for ins_obj in sorted(instant_objs , key = lambda x : x.queried_date):
         ins_dict = ins_obj.__dict__
         ins_dict.update({'pic_link': pic_link})
