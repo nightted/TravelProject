@@ -64,9 +64,13 @@ def get_digits(text):
 
     return collect  # a list
 
-def generate_day_range(target_day , day_range ):
+def generate_day_range(target_day , day_range_forward , day_range_backward):
 
-    day_range = [i for i in range(-(day_range), day_range + 1, 1)]
+    '''
+    generate date between target date in +day_range_forward /-day_range_backword
+    '''
+
+    day_range = [i for i in range(-(day_range_backward), day_range_forward + 1, 1)]
     dates = [ get_date_string(target_day, i) for i in day_range ]
 
     return dates
