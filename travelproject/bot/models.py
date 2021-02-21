@@ -340,22 +340,23 @@ class Resturant(Place):
     @classmethod
     def create_obj_by_dict(cls, **store_dict):
         # basic attribute
-        admin_area = store_dict.get('admin_area')
 
         obj = cls(**store_dict)
         if obj not in cls.objects.all():
-
             obj.save()  # if not has same data in database , update it .
-            nearby_hotels = filter_store_by_criteria(Hotel.objects.filter(admin_area=admin_area) ,
-                                                     center = obj.return_location(),
-                                                     criteria = 500,
-                                                     scan_shape = 'circle') # filter nearby hotels
-
-            print(f'DEBUG in Resturant models : {admin_area} , {obj.name} , {nearby_hotels}')
-            for hotel in nearby_hotels:
-                obj.nearby_hotel.add(hotel) # add into foreign-key
 
         return obj
+
+    def add_nearby_hotel(self):
+
+        nearby_hotels = filter_store_by_criteria(Hotel.objects.filter(admin_area=self.admin_area),
+                                                 center=self.return_location(),
+                                                 criteria=500,
+                                                 scan_shape='circle')  # filter nearby hotels
+
+        print(f'DEBUG in Resturant models : {self.admin_area} , {self.name} , {nearby_hotels}')
+        for hotel in nearby_hotels:
+            self.nearby_hotel.add(hotel)  # add into foreign-key
 
 class Station(Place):
 
