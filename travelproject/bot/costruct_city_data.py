@@ -1,4 +1,4 @@
-from bot.google_map_scraper import moving_store_scraper  , init_gmaps
+from bot.google_map_scraper import GoogleMap_Scraper  , init_gmaps
 from bot.tools import *
 from bot.density_analysis import local_density
 from bot.constants import *
@@ -10,6 +10,7 @@ from bot.models import *
 # City prop.
 admin_area = 'Hualien'
 
+# search center
 try:
     search_center = center_of_city[admin_area]['location']
 except KeyError:
@@ -17,34 +18,45 @@ except KeyError:
 
 # All scrape type of stores
 store_types = {
-    '飯店' : {'radius' : 500 , 'ranging' : 0 , 'place_type' : 'hotel' , 'place_sub_type' : 'hotel'} , # TODO (備忘) : need to construct hotel first due to manytomany field !!!!!
-    '餐廳' : {'radius' : 500 , 'ranging' : 0 , 'place_type' : 'resturant' , 'place_sub_type' : 'resturant'} ,
-    '便利商店' : {'radius' : 500 , 'ranging' : 0 , 'place_type' : 'resturant' , 'place_sub_type' : 'con'} ,
-    '停車場' : {'radius' : 500 , 'ranging' : 0 , 'place_type' : 'station' , 'place_sub_type' : 'parking'} ,
-    '夜市' : {'radius' : 500 , 'ranging' : 0 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'nightmarket'} ,
-    '觀光景點' : {'radius' : 500 , 'ranging' : 0 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'sightseeing'} ,
-    f"{center_of_city[admin_area]['city_en_to_cn']}火車站" : {'radius' : 500 , 'ranging' : 0 , 'place_type' : 'station' , 'place_sub_type' : 'station'} ,
+    #'飯店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'hotel' , 'place_sub_type' : 'hotel'} , # TODO (備忘) : need to construct hotel first due to manytomany field !!!!!
+    '餐廳' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'resturant'} ,
+    '便利商店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'con'} ,
+    '停車場' : {'radius' : 1000 , 'ranging' : 3 , 'place_type' : 'station' , 'place_sub_type' : 'parking'} ,
+    '夜市' : {'radius' : 2000 , 'ranging' : 2 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'nightmarket'} ,
+    '觀光景點' : {'radius' : 1000 , 'ranging' : 3 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'sightseeing'} ,
+    f"{center_of_city[admin_area]['city_en_to_cn']}火車站" : {'radius' : 5000 , 'ranging' : 1 , 'place_type' : 'station' , 'place_sub_type' : 'station'} ,
 }
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
+# popular food
+popular_food = center_of_city[admin_area]['popular_food']
+criteria = store_types['餐廳']
+for food in popular_food:
+    store_types.update({food : criteria})
 
+
+# step 1
+def place_scraper(store_types):
+    
     if not admin_area:
         raise NameError('No admin_area assigned !!!')
 
     # Firstly , grab all type stores and storage into store_objects_all
     print("Now in stage 1 ~ grab all type stores and storage into store_objects_all  ")
+    print(f' The store types: {store_types}')
 
     objects = {}
     for keyword , store_param  in store_types.items():
-        objs = moving_store_scraper( keyword = keyword   ,
-                                     search_center = search_center ,
-                                     admin_area = admin_area ,
-                                     radius = store_param['radius'] ,
-                                     ranging = store_param['ranging']  ,
-                                     place_type = store_param['place_type'] ,
-                                     place_sub_type = store_param['place_sub_type'],
-                                     )
+
+        print(f' Now scrape {keyword} data ~ , the params is {store_param}')
+        gmap_scraper = GoogleMap_Scraper()
+        objs = gmap_scraper.moving_store_scraper(keyword = keyword   ,
+                                                 search_center = search_center ,
+                                                 admin_area = admin_area ,
+                                                 radius = store_param['radius'] ,
+                                                 ranging = store_param['ranging']  ,
+                                                 place_type = store_param['place_type'] ,
+                                                 place_sub_type = store_param['place_sub_type'],
+                                                 )
         objects.update({
             keyword : objs
         })
@@ -55,26 +67,28 @@ if __name__ == '__main__':
         for store in stores:
             print(store.__dict__)
             print('\n')
-
-
-    # Secondly , to compare the name of hotels between booking.com and gmaps and filter
-    print("Now in stage 2 ~ compare the name of hotels between booking.com and gmaps and filter ")
-
-    all_hotel_objects = Hotel.objects.filter(admin_area = admin_area)
+            
+# step 2
+def construct_hotel_data(admin_area):
+    
+    all_hotel_objects = Hotel.objects.filter(admin_area=admin_area)
     for hotel in all_hotel_objects:
         hotel.main_construct_step()
 
+    # remember to add nearby hotel for resturant objects!!
+    for resturant in Resturant.objects.filter(admin_area=admin_area):
+        resturant.add_nearby_hotel()
 
-    # Thirdly , construct density data of all type of stores
-    print("Now in stage 3 ~ construct density data of all type of stores ")
-
+# step 3
+def construct_density_matrix(store_types):
+    
     for _ , store_param in  store_types.items():
         data_objects = Place.objects.filter(place_sub_type = store_param['place_sub_type'])
         output , max_rho , max_pos  = local_density(data_objects,
-                                            rating_dependent=True,
-                                            jump_distance=100,
-                                            ranging=40,
-                                            scan_distance=300)
+                                                    rating_dependent=True,
+                                                    jump_distance=100,
+                                                    ranging=40,
+                                                    scan_distance=300)
         density = output[0]
         gridtolatlng = output[1]
 
@@ -86,3 +100,26 @@ if __name__ == '__main__':
     Array_3d.create_array_object(arr=gridtolatlng,
                                  name='gridtolatlng',
                                  admin_area=admin_area)
+    
+
+
+# Press the green button in the gutter to run the script.
+if __name__ == '__main__':
+
+    if not admin_area or not store_types:
+        raise NameError('No admin_area store_type assigned !!!')
+    
+    # Firstly , grab all type stores and storage into store_objects_all
+    print("Now in stage 1 ~ grab all type stores and storage into store_objects_all  ")
+
+    place_scraper(store_types)
+
+    # Secondly , to compare the name of hotels between booking.com and gmaps and filter
+    print("Now in stage 2 ~ compare the name of hotels between booking.com and gmaps and filter ")
+
+    #construct_hotel_data(admin_area)
+
+    # Thirdly , construct density data of all type of stores
+    print("Now in stage 3 ~ construct density data of all type of stores ")
+
+    #construct_density_matrix(store_types)
