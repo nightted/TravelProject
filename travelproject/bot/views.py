@@ -15,6 +15,7 @@ from bot.density_analysis import get_place_latlng_by_gmaps
 from bot.object_filter import filter_store_by_criteria
 from bot.google_map_scraper import init_gmaps , GoogleMap_Scraper
 from bot.tools import lat_lng_to_x_y , x_y_to_lat_lng
+from bot.plot import save_price_trend_img
 
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
@@ -338,7 +339,7 @@ def return_message(event,
         contents = '請輸入你所在位置(例如:民宿,飯店,景點..)或地址~ , 輸入完成後請靜待5~15秒鐘等待資料抓取~ (如沒回應 , 請點按"再查一次"的按鈕!)'
 
     elif next_type_header == 'hotel_name_input':
-        contents = '請輸入你想住的飯店~ , 輸入完成後請靜待3~5秒鐘等待資料抓取~ (如沒回應 , 請再輸入一次!)'
+        contents = '請輸入你想住的飯店~ , 輸入完成後請靜待 5~8 秒鐘等待資料抓取~ (如沒回應 , 請再輸入一次!)'
 
     elif next_type_header == 'sightseeing':
         contents = '請輸入你想去的景點 ~ (如沒想去的地方 , 直接輸入"無") , 輸入完成後請靜待3~5秒鐘等待資料抓取~'
@@ -700,27 +701,22 @@ def return_PriceTrend(event,
 
         dates , prices = [] , []
         dict_list = get_hotel_instance(client_obj , long_range_trend=True)
+
         for dict in dict_list:
+
             dates.append(dict.get('queried_date'))
             price = 0 if not dict.get('price') else dict.get('price')
             prices.append(price)
 
+        print("DEBUG in plot2:", dates , prices)
+
         queried_date = client_obj.queried_date
         hotel_name = client_obj.recommend if client_obj.recommend else client_obj.hotel_name_input
-        plt.plot(dates,prices)
-        plt.xticks(rotation=90)  # Rotates X-Axis Ticks by 45-degrees
 
-        img_path = f'bot/trend_img/{hotel_name}_{queried_date}.png'
-        if os.path.isfile(img_path):
-            print(f"File exist!!!")
-        else:
-            plt.savefig(img_path)
-
+        img_path = save_price_trend_img(dates , prices ,hotel_name=hotel_name,queried_date=queried_date)
         im = pyimgur.Imgur(client_id=CLIENT_ID,client_secret=CLIENT_SECRET)
         uploaded_img = im.upload_image(img_path , title = 'Uploaded with PyImgur')
         img_URL = uploaded_img.link
-
-
 
 
 
@@ -810,7 +806,6 @@ def get_hotel_instance(client_obj, long_range_trend = False):
     pic_link = getattr(selected_hotel , 'pic_link')
 
     dict_list = []
-
 
     for ins_obj in sorted(instant_objs , key = lambda x : x.queried_date):
         ins_dict = ins_obj.__dict__
