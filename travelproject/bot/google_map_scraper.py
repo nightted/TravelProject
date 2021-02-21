@@ -33,7 +33,7 @@ class GoogleMap_Scraper:
 
     def __init__(self):
 
-        self.map = init_gmaps()
+        self.maps = init_gmaps()
 
     @classmethod
     def extract_address_by_geocode(cls, maps, name):
@@ -49,7 +49,10 @@ class GoogleMap_Scraper:
           #address : address of store
         '''
         geocode_result = maps.geocode(name, language='zh-TW')
-        lnglat = geocode_result[0]['geometry']['location']
+        try:
+            lnglat = geocode_result[0]['geometry']['location'] # check if this place result exist
+        except IndexError:
+            return None # if not exist ,return None
 
         # firstly check place in taiwan or not
         if check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
@@ -357,13 +360,13 @@ def grid_generator(location, radius, ranging, mode="max_area"):
         @ is scan point in grid
 
         mode 'normal : @--2*r--@--2*r--@--2*r--@--2*r--@
-                @--2*r--@--2*r--@--2*r--@--2*r--@
+                       @--2*r--@--2*r--@--2*r--@--2*r--@
 
         mode 'max_area' :    @--2*r--@--2*r--@--2*r--
-                    --2*r--@--2*r--@--2*r--@
+                         --2*r--@--2*r--@--2*r--@
 
         mode 'full_cover' :  @-r-@-r-@-r-@-r-@
-                    @-r-@-r-@-r-@-r-@
+                             @-r-@-r-@-r-@-r-@
     input :
       #location : search center (grid start generating from this point)
       #radius : interval between grid point
