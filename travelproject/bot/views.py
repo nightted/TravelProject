@@ -13,7 +13,7 @@ from bot.generate_template import button_template_generator , carousel_template_
 from bot.string_comparing import find_common_word_2str
 from bot.density_analysis import get_place_latlng_by_gmaps
 from bot.object_filter import filter_store_by_criteria
-from bot.google_map_scraper import init_gmaps , GoogleMap_Scraper
+from bot.google_map_scraper import  GoogleMap_Scraper , check_place_in_range
 from bot.tools import lat_lng_to_x_y , x_y_to_lat_lng
 from bot.plot import save_price_trend_img
 
@@ -35,6 +35,7 @@ from linebot.models import (
     # Receive message
     TextMessage ,
     StickerMessage ,
+    LocationMessage ,
 
     # Send messages
     TextSendMessage, # send text reply
@@ -132,6 +133,10 @@ def callback(request):
 # 1. 首先 event 進來 server, handle_ function 會先 parse event message and data , 並將 data store 進 database ;
 # 2. 接著判別是哪種 type 的 event , 並利用 reply_ function 選擇要回復的訊息 or 要回復的 template type , 進行回傳 client
 # 3. 最後 client 接收到訊息 or template , 再進行回覆 server (loop back to 1.)
+
+
+
+# handle the following event
 @handler.add(FollowEvent)
 def handle_follow(event):
 
@@ -140,6 +145,52 @@ def handle_follow(event):
         TextSendMessage(text=follow_message)
     )
 
+# handle the location event
+@handler.add(MessageEvent, message=LocationMessage)
+def handle_location(event):
+
+    try:
+        client_obj = Line_client.objects.get(user_id=event.source.user_id,
+                                             query_date=datetime.date.today())
+    except:
+        client_obj = Line_client.create_obj_by_dict(user_id = event.source.user_id,
+                                                    query_date=datetime.date.today())
+    type_header = client_obj.type_header
+
+
+    if type_header == 'place_name_input':
+
+        message = event.message
+        latlng , address = [message.longitude, message.latitude] , message.address
+        print(f'DEBUG in handle_location : {latlng}')
+        in_range = check_place_in_range(latlng , client_obj.admin_area)
+
+        if in_range:
+
+            save_attr_to_database(type_header, client_obj, address)
+            return_postback(event,
+                            client_obj=client_obj,
+                            type_header=type_header,
+                            latlng=latlng)
+        else:
+            '''
+             Not saving attrs here!
+            '''
+            # if not in admin_area range , re-send message.
+            type_header = type_header_backward(client_obj)
+            other_msg = f'您的給的位置不在 {client_obj.admin_area} 區域內喔! 請確認您的位置在{client_obj.admin_area}區域內~'
+            return_message(event,
+                           client_obj=client_obj,
+                           type_header=type_header,
+                           other_msg=other_msg)
+
+    else:
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text='請重新搜尋~')
+        )
+
+# handle the text and sticker event
 @handler.add(MessageEvent, message=[TextMessage , StickerMessage])
 def handle_message(event):
 
@@ -151,6 +202,10 @@ def handle_message(event):
         :return: None
     '''
 
+    if isinstance(event.message, StickerMessage):
+        msg = event.message.keywords[0]
+    else:
+        msg = event.message.text  # parse messages from event object
 
     # got client object
     # In the beginning of entering apps ,
@@ -177,8 +232,6 @@ def handle_message(event):
 
     print('DEBUG handle_message type header: ', type_header)
 
-
-    msg = event.message.text # parse messages from event object
     if msg in ['重新搜尋','重新選擇','重選','重搜','重新']:
 
         # in every type stage , every time you key in "重新搜尋" or "re-search" ,
@@ -218,12 +271,8 @@ def handle_message(event):
 
                 # get place lat lng directly , and check in admin_area range or not
                 place_latlng = get_place_latlng_by_gmaps(msg)
-                lng , lat = place_latlng[0] , place_latlng[1]
-
-                lat_range = center_of_city[client_obj.admin_area]['city_range']['lat']
-                lng_range = center_of_city[client_obj.admin_area]['city_range']['lng']
-
-                in_range = lng_range[0]<=lng<=lng_range[1] and lat_range[0]<=lat<=lat_range[1]
+                latlng = [place_latlng[0] , place_latlng[1]]
+                in_range = check_place_in_range(latlng , client_obj.admin_area)
 
                 if in_range:
                     save_attr_to_database(type_header, client_obj, msg)
@@ -235,7 +284,6 @@ def handle_message(event):
                     '''
                      Not saving attrs here!
                     '''
-
                     # if not in admin_area range , re-send message.
                     type_header = type_header_backward(client_obj)
                     other_msg = f'您的給的位置不在 {client_obj.admin_area} 區域內喔! 請重新輸入位置~'
@@ -336,7 +384,7 @@ def return_message(event,
         raise ValueError('No next type exist!!!')
 
     if next_type_header == 'place_name_input':
-        contents = '請輸入你所在位置(例如:民宿,飯店,景點..)或地址~ , 輸入完成後請靜待5~15秒鐘等待資料抓取~ (如沒回應 , 請點按"再查一次"的按鈕!)'
+        contents = '請輸入你所在位置(例如:民宿,飯店,景點..)或地址~ ,或直接傳送您的地點~ , 完成後請靜待5~15秒鐘等待資料抓取~ (如沒回應 , 請點按"再查一次"的按鈕!)'
 
     elif next_type_header == 'hotel_name_input':
         contents = '請輸入你想住的飯店~ , 輸入完成後請靜待 5~8 秒鐘等待資料抓取~ (如沒回應 , 請再輸入一次!)'
@@ -364,6 +412,7 @@ def return_message(event,
     '''
 
 
+# handle the postback button event
 @handler.add(PostbackEvent)
 def handle_postback(event):
 
@@ -604,11 +653,22 @@ def return_postback(event,
     # if next stage is "food_recommend_place" , use place name to find resturant object ;
     elif next_type_header == 'food_recommend_place':
 
-        place_name = client_obj.place_name_input
+
+        latlng = other_msg.get('latlng')
+        other_msg = '' # clear it to avoid message return error !
+        if latlng:
+            place_name_or_latlng = latlng
+        else:
+            place_name_or_latlng = client_obj.place_name_input
+
+        print(f'DEBUG in place name input : {place_name_or_latlng}')
+
+        # TODO: 這邊會發生LineBotAPI error !!! 目前看來 dict_list 是正常的, 差別在於這邊先直接利用 Location message 取得 latlng!
+
         dict_list = get_nearby_resturant(RandomChoose = 4,
                                          admin_area = client_obj.admin_area,
                                          rating_threshold = 4.0,
-                                         place_name = place_name)
+                                         place_name_or_latlng = place_name_or_latlng)
 
         contents = carousel_template_generator(temp_type=next_type_header,
                                                dict_list=dict_list)
@@ -621,6 +681,7 @@ def return_postback(event,
         dict_list = get_nearby_resturant(RandomChoose = 4,
                                          rating_threshold = 4.0,
                                          hotel_name = hotel_name)
+
         contents = carousel_template_generator(temp_type=next_type_header,
                                                dict_list=dict_list)
 
@@ -661,6 +722,7 @@ def return_postback(event,
         reply_action
     )
 
+
 # return location message
 def return_location(event,
                     client_obj, # 可直接在 reply function 中取用 client 即時 data !
@@ -683,6 +745,7 @@ def return_location(event,
             longitude=lng
         )
     )
+
 
 # return Price-trend Image-message of hotel
 def return_PriceTrend(event,
@@ -891,9 +954,11 @@ def get_nearby_resturant(RandomChoose ,
                          NEARBY_CRITERIA = NEARBY_CRITERIA,
                          admin_area = None ,
                          hotel_name = None ,
-                         place_name = None , ):
+                         place_name_or_latlng = None):
 
-    if not hotel_name and not place_name:
+    maps = GoogleMap_Scraper.init_gmaps() # initialize gmaps API
+
+    if not hotel_name and not place_name_or_latlng:
         raise ValueError('No hotel or place assigned!')
 
     if hotel_name:
@@ -902,10 +967,16 @@ def get_nearby_resturant(RandomChoose ,
                                                                                        rating_threshold)
         place_x_y = [select_hotel.lng , select_hotel.lat]
 
-    elif place_name:
+    elif place_name_or_latlng:
 
-        maps = init_gmaps()
-        place_x_y = get_place_latlng_by_gmaps(place_name , maps = maps)
+        # if is not latlng(list type) , scrape lat lng from gmap api
+        if not isinstance(place_name_or_latlng, list):
+
+            place_x_y = get_place_latlng_by_gmaps(place_name_or_latlng , maps = maps)
+
+        else:
+            place_x_y = place_name_or_latlng
+
         if not place_x_y:
             raise ValueError("Not exist such place!!")
 
@@ -913,8 +984,9 @@ def get_nearby_resturant(RandomChoose ,
                                                                         rating_threshold,
                                                                         admin_area)
 
-        print(f'DEBUG nearby_resturants  : {admin_area} , {[resturant.name for resturant in nearby_resturants]}')
 
+        print(f'DEBUG nearby_resturants  : {admin_area} , {[resturant.name for resturant in nearby_resturants]}')
+    print(f'DEBUG place_x_y : {place_x_y}')
 
 
     # if can't find any nearby resturant , using gmaps place_nearby to compensate it.
@@ -922,13 +994,7 @@ def get_nearby_resturant(RandomChoose ,
 
         print(f'DEBUG in insufficient about {RandomChoose - len(nearby_resturants)} resturants !!!')
 
-        if maps not in locals():
-            maps = init_gmaps()
-
         place_latlng = x_y_to_lat_lng(place_x_y)
-
-
-
         while True and NEARBY_CRITERIA<20000:
 
             print(f'DEBUG NEARBY_CRITERIA now : {NEARBY_CRITERIA}')
@@ -962,6 +1028,7 @@ def get_nearby_resturant(RandomChoose ,
 
     dict_list = async_get_search_result_by_resturant(nearby_resturants) # async scrape web_preview of all restuant
 
+
     # calculate the distance from hotel.
     for dict in dict_list:
 
@@ -969,6 +1036,8 @@ def get_nearby_resturant(RandomChoose ,
         print(f'DEBUG in distance : {place_x_y},{resturant_x_y}')
         distance_resturant = distance(place_x_y , resturant_x_y)
         dict.update({'distance' : distance_resturant})
+
+
 
     return dict_list
 
