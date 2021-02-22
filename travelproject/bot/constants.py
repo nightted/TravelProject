@@ -26,7 +26,7 @@ center_of_city = {
                  'city_range' : {'lat' : [24.428411 ,24.946137] , 'lng' : [120.878891 ,121.412232]}},
     "Hualien" : {'location' : {'lat': 23.9927385, 'lng': 121.6013407} ,
                  'city_en_to_cn' : '花蓮' ,
-                 'popular_food' : ['扁食' , '麻糬' ] ,
+                 'popular_food' : ['扁食'] ,
                  'city_range' : {'lat' : [23.099277 ,24.370550] , 'lng' : [120.989121 ,121.647408]}},
     "Yilan" : {'location' : {'lat': 24.6783841, 'lng': 121.7745634} ,
                'city_en_to_cn' : '宜蘭' ,

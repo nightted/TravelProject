@@ -18,12 +18,12 @@ except KeyError:
 
 # All scrape type of stores
 store_types = {
-    #'飯店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'hotel' , 'place_sub_type' : 'hotel'} , # TODO (備忘) : need to construct hotel first due to manytomany field !!!!!
+    '飯店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'hotel' , 'place_sub_type' : 'hotel'} , # TODO (備忘) : need to construct hotel first due to manytomany field !!!!!
     '餐廳' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'resturant'} ,
     '便利商店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'con'} ,
     '停車場' : {'radius' : 1000 , 'ranging' : 3 , 'place_type' : 'station' , 'place_sub_type' : 'parking'} ,
     '夜市' : {'radius' : 2000 , 'ranging' : 2 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'nightmarket'} ,
-    '觀光景點' : {'radius' : 1000 , 'ranging' : 3 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'sightseeing'} ,
+    '觀光景點' : {'radius' : 3000 , 'ranging' : 4 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'sightseeing'} ,
     f"{center_of_city[admin_area]['city_en_to_cn']}火車站" : {'radius' : 5000 , 'ranging' : 1 , 'place_type' : 'station' , 'place_sub_type' : 'station'} ,
 }
 
@@ -67,17 +67,20 @@ def place_scraper(store_types):
         for store in stores:
             print(store.__dict__)
             print('\n')
-            
+
+
 # step 2
 def construct_hotel_data(admin_area):
     
     all_hotel_objects = Hotel.objects.filter(admin_area=admin_area)
-    for hotel in all_hotel_objects:
+    for idx , hotel in enumerate(all_hotel_objects):
+        print(f' Now in [{len(all_hotel_objects)}/{idx+1}] : {hotel.name}')
         hotel.main_construct_step()
 
     # remember to add nearby hotel for resturant objects!!
     for resturant in Resturant.objects.filter(admin_area=admin_area):
         resturant.add_nearby_hotel()
+
 
 # step 3
 def construct_density_matrix(store_types):
@@ -112,12 +115,12 @@ if __name__ == '__main__':
     # Firstly , grab all type stores and storage into store_objects_all
     print("Now in stage 1 ~ grab all type stores and storage into store_objects_all  ")
 
-    place_scraper(store_types)
+    #place_scraper(store_types)
 
     # Secondly , to compare the name of hotels between booking.com and gmaps and filter
     print("Now in stage 2 ~ compare the name of hotels between booking.com and gmaps and filter ")
 
-    #construct_hotel_data(admin_area)
+    construct_hotel_data(admin_area)
 
     # Thirdly , construct density data of all type of stores
     print("Now in stage 3 ~ construct density data of all type of stores ")

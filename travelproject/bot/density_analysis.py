@@ -4,7 +4,7 @@ from scipy.ndimage.filters import maximum_filter
 from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 
 from bot.constants import *
-from bot.google_map_scraper import rating_modify , grid_generator , init_gmaps
+from bot.google_map_scraper import rating_modify , grid_generator , GoogleMap_Scraper
 from bot.tools import set_env_attr
 
 set_env_attr()  # set env attrs
@@ -355,7 +355,7 @@ def get_latlng_directly( positions , admin_area ):
 def get_place_latlng_by_gmaps(position , maps = None):
 
     if not maps:
-        maps = init_gmaps()
+        maps = GoogleMap_Scraper.init_gmaps()
 
     res = maps.geocode(position)
     try:
