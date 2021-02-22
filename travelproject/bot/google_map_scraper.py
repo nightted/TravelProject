@@ -18,22 +18,25 @@ from bot.models import *
 '''
 
 
-def init_gmaps():
 
-    config = configparser.ConfigParser()
-    config_file = os.path.join(os.path.dirname(__file__),'config.ini')  # https://stackoverflow.com/questions/29426483/python3-configparser-keyerror-when-run-as-cronjob
-    config.read(config_file)
-
-    GOOGLE_API_KEY = config['secret']['google_map_api_key']
-    maps = googlemaps.Client(GOOGLE_API_KEY)
-
-    return maps
 
 class GoogleMap_Scraper:
 
     def __init__(self):
 
-        self.maps = init_gmaps()
+        self.maps = self.init_gmaps()
+
+    @staticmethod
+    def init_gmaps():
+
+        config = configparser.ConfigParser()
+        config_file = os.path.join(os.path.dirname(__file__),'config.ini')  # https://stackoverflow.com/questions/29426483/python3-configparser-keyerror-when-run-as-cronjob
+        config.read(config_file)
+        GOOGLE_API_KEY = config['secret']['google_map_api_key']
+
+        maps = googlemaps.Client(GOOGLE_API_KEY)
+
+        return maps
 
     @classmethod
     def extract_address_by_geocode(cls, maps, name):
@@ -335,22 +338,27 @@ class GoogleMap_Scraper:
 
 
 
-
-
-
 # Check the place is in target admin_area or not
-def check_place_in_range(lnglat, Admin_area_range_lng, Admin_area_range_lat):
+def check_place_in_range(latlng , admin_area):
 
     try:
-        lng = lnglat['lng']
-        lat = lnglat['lat']
+        if isinstance(latlng , dict):
 
-    # if the argumaent is None
-    except TypeError:
-        return True
+            lng = latlng['lng']
+            lat = latlng['lat']
 
-    return Admin_area_range_lng[0] < lng < Admin_area_range_lng[1] and Admin_area_range_lat[0] < lat < \
-           Admin_area_range_lat[1]
+        elif isinstance(latlng , list):
+            lng = latlng[0]
+            lat = latlng[1]
+    except:
+        return False # if no latlng in input , return False
+
+    try:
+        range_dict = center_of_city[admin_area]['city_range']
+    except KeyError:
+        raise KeyError('No such city exist in database!!')
+
+    return range_dict['lng'][0] < lng < range_dict['lng'][1] and range_dict['lat'][0] < lat < range_dict['lat'][1]
 
 # generate grid of position by radius
 def grid_generator(location, radius, ranging, mode="max_area"):
