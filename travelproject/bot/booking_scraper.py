@@ -145,16 +145,20 @@ def check_alive_or_not(search_result,
 
     tag : if not none , get property of that tag
     '''
+
     if not search_result:
         if msg_if_none:
             return msg_if_none
         else :
             return None
+
     else:
         if not text and not tag:
             raise NameError("Need to assign tag if not finding text!!")
 
-        if len(search_result) > 1:
+        # if get text and text # > 1 , special handle.
+        if len(search_result) > 1 and text :
+
             search_result = [result.text for result in search_result ]
             search_result = ' + '.join(search_result)
 
@@ -315,7 +319,7 @@ def extract_informations_from_soup( date , soup_content, soup_pic, instant_infor
         hotel_comment_num = check_alive_or_not(soup_content.find('div', {"class": "bui-review-score__text"})) # get # of comments
         hotel_comment_num = get_digits(hotel_comment_num)[0] if hotel_comment_num else None
 
-        hotel_star = check_alive_or_not(soup_content.find('span', {'class': "bui-rating bui-rating--smaller"}),text=False, tag='aria-label')  # get star of hotel
+        hotel_star = check_alive_or_not(soup_content.find('span', {'class': "bui-rating--smaller"}),text=False, tag='aria-label')  # get star of hotel
         hotel_star = get_digits(hotel_star)[0] if hotel_star else None
 
         ### get below <div class="sr_item_photo sr_card_photo_wrapper" id="hotel_5621655">
@@ -349,6 +353,7 @@ def get_detail_hotel_information(hotel_name=None, place_id=None, destination_adm
                                         destination_admin=destination_admin)
 
     if inform_dict:
+
         href = inform_dict['href']
         new_url = HEADER_URL + href
         soup_sub = send_request(new_url, method="GET")
@@ -363,6 +368,7 @@ def get_detail_hotel_information(hotel_name=None, place_id=None, destination_adm
 
         # soup of latlng part
         latlng_booking = soup_sub.find('a', {'id': "hotel_sidebar_static_map"})
+        #print("latlng_booking:" , latlng_booking)
         latlng_booking = latlng_booking['data-atlas-latlng'].split(',')
         latlng_booking = [float(latlng_booking[1]), float(latlng_booking[0])]
 
