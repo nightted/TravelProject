@@ -11,6 +11,9 @@ def get_search_result_by_resturant(resturant_obj):
 
             res = web_preview(result_url)
             preview_pic_url = res[2]
+            if not preview_pic_url:
+                continue
+
             result_dict.update(
                                 {'result_url' : result_url,
                                  'preview_pic_url' : preview_pic_url ,
