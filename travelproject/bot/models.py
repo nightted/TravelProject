@@ -93,59 +93,62 @@ class Hotel(Place):
 
         print(f'The google map name is : {self.name}')
 
+        if not self.room_source and not self.source_name:
         # First step : Name judgement (gmap name vs. booking name) by sending place_id or gmap name search request
-        inform_dict, detail_inform_dict = get_detail_hotel_information(place_id=self.place_id,
-                                                                       destination_admin=self.admin_area)
+            inform_dict, detail_inform_dict = get_detail_hotel_information(place_id=self.place_id,
+                                                                           destination_admin=self.admin_area)
 
-        if inform_dict and detail_inform_dict:
+            if inform_dict and detail_inform_dict:
 
-            name_booking = detail_inform_dict['name_booking']
-            common_word_count, max_len_chars = find_common_word_2str(self.name, name_booking)
-            name_judge = common_word_count >= 2
+                name_booking = detail_inform_dict['name_booking']
+                common_word_count, max_len_chars = find_common_word_2str(self.name, name_booking)
+                name_judge = common_word_count >= 2
 
-            '''
-            if not name_judge:
-              inform_dict , detail_inform_dict = get_detail_hotel_information(hotel_name = self.name , destination_admin = self.admin_area )
-              name_booking = detail_inform_dict['name_booking']
-              common_word_count , max_len_chars = find_common_word_2str(self.name , name_booking) 
-              name_judge = common_word_count >= 2
-            '''
+                '''
+                if not name_judge:
+                  inform_dict , detail_inform_dict = get_detail_hotel_information(hotel_name = self.name , destination_admin = self.admin_area )
+                  name_booking = detail_inform_dict['name_booking']
+                  common_word_count , max_len_chars = find_common_word_2str(self.name , name_booking) 
+                  name_judge = common_word_count >= 2
+                '''
 
-            print(f'The booking search name is : {name_booking}')
+                print(f'The booking search name is : {name_booking}')
 
-            # Second step : distance judgement (by place id input and get latlng result)
-            latlng_gmap, latlng_booking = [self.lng, self.lat], detail_inform_dict['latlng_booking']
-            delta_distance = distance(latlng_gmap, latlng_booking)
-            distance_judge = delta_distance < distance_threshold
+                # Second step : distance judgement (by place id input and get latlng result)
+                latlng_gmap, latlng_booking = [self.lng, self.lat], detail_inform_dict['latlng_booking']
+                delta_distance = distance(latlng_gmap, latlng_booking)
+                distance_judge = delta_distance < distance_threshold
 
-            print(f'latlng_booking : {latlng_booking} , latlng_gmap : [{self.lng},{self.lat}] ')
-            print(f'Distance = {delta_distance} meters')
-            print(f'There is {common_word_count} same words {max_len_chars}')
+                print(f'latlng_booking : {latlng_booking} , latlng_gmap : [{self.lng},{self.lat}] ')
+                print(f'Distance = {delta_distance} meters')
+                print(f'There is {common_word_count} same words {max_len_chars}')
 
-            if name_judge and distance_judge:
+                if name_judge and distance_judge:
 
-                # "PASS" name comparison , construct static property !
-                self.room_source = 'booking'
-                self.source_name = name_booking
-                self.construct_static_attr({**inform_dict, **detail_inform_dict})
+                    # "PASS" name comparison , construct static property !
+                    self.room_source = 'booking'
+                    self.source_name = name_booking
+                    self.construct_static_attr({**inform_dict, **detail_inform_dict})
 
-                print(f'Booking contain this hotel : {name_booking}')
+                    print(f'Booking contain this hotel : {name_booking}')
 
 
+                else:
+                    # "NOT PASS" name comparison ,not construct static property here !
+                    print(f'This hotel {name_booking} is not the same hotel as {self.name}!')
+                    self.room_source = self.source_name = 'Not Found'
+                    self.save()
+
+                print('\n')
             else:
-                # "NOT PASS" name comparison ,not construct static property here !
-                print(f'This hotel {name_booking} is not the same hotel as {self.name}!')
-
-            print('\n')
-        else:
-            print(f"Can't find this hotel {self.name}'s information !")
+                print(f"Can't find this hotel {self.name}'s information !")
 
 
 
 
     def construct_static_attr(self, store_dict):
         # Detail property (from booking or agoda ..)
-        if getattr(self, 'room_source', None) and getattr(self, 'source_name', None):  # check room source exsit
+        if getattr(self, 'room_source', None) and getattr(self, 'source_name', None):  # check room source exist
 
             if self.room_source == 'booking':
 
