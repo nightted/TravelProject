@@ -3,8 +3,9 @@ from webpreview import web_preview
 
 def get_search_result_by_resturant(resturant_obj):
 
+
     result_dict = {}
-    for result_url in search(resturant_obj.name, stop=5, pause=2.0):
+    for result_url in search(resturant_obj.name, num=3 , pause=2.0):
         if 'facebook' not in result_url:
 
             #print('DEBUG in web_preview:' , result_url)
@@ -24,7 +25,7 @@ def get_search_result_by_resturant(resturant_obj):
                               )
             break
 
-    print("DEBUG : " , result_dict)
+    print("DEBUG in result_dict : " , result_dict)
 
     return result_dict
 
