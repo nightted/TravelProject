@@ -203,7 +203,7 @@ def handle_message(event):
     '''
 
     if isinstance(event.message, StickerMessage):
-        msg = event.message.keywords[0]
+        msg = event.message.keywords[0] if event.message.keywords else 'None'
     else:
         msg = event.message.text  # parse messages from event object
 
@@ -555,8 +555,6 @@ def handle_postback(event):
 
         elif 'PlotPriceTrend' in pre_postback_data:
 
-
-            # TODO: plot price trend chart
             # Using pyimgur :  https://ithelp.ithome.com.tw/questions/10193987
 
             return_PriceTrend(event,
@@ -655,15 +653,12 @@ def return_postback(event,
 
 
         latlng = other_msg.get('latlng')
-        other_msg = '' # clear it to avoid message return error !
         if latlng:
             place_name_or_latlng = latlng
         else:
             place_name_or_latlng = client_obj.place_name_input
 
-        print(f'DEBUG in place name input : {place_name_or_latlng}')
-
-        # TODO: 這邊會發生LineBotAPI error !!! 目前看來 dict_list 是正常的, 差別在於這邊先直接利用 Location message 取得 latlng!
+        # (已解決, 備忘): 這邊會發生LineBotAPI error !!! Root cause : 因 other_msg 不是 string , 故下面 send message 會出錯
 
         dict_list = get_nearby_resturant(RandomChoose = 4,
                                          admin_area = client_obj.admin_area,
@@ -712,7 +707,7 @@ def return_postback(event,
 
 
     reply_action = [FlexSendMessage(alt_text='FlexTemplate',contents=contents)]
-    if other_msg:
+    if isinstance(other_msg , str):
         for _ , msg in other_msg.items():
             if msg:
                 reply_action.insert(0 , TextSendMessage(text=msg)) # insert other msg in front of button reply
@@ -762,32 +757,38 @@ def return_PriceTrend(event,
 
     if type_header == 'instant':
 
-        dates , prices = [] , []
+        dates , prices , room_recommends = [] , [] , []
         dict_list = get_hotel_instance(client_obj , long_range_trend=True)
 
         for dict in dict_list:
 
             dates.append(dict.get('queried_date'))
-            price = 0 if not dict.get('price') else dict.get('price')
+            price = '已售完!' if not dict.get('price') else dict.get('price')
             prices.append(price)
+            room_recommends.append(dict.get('room_recommend'))
 
-        print("DEBUG in plot2:", dates , prices)
+        return_message = ''
+        for price , date , room_recommend in zip(prices, dates , room_recommends):
+            if price == '已售完!':
+                price_date = f'日期 : {date} , {price} '
+            else:
+                price_date =  f'{date}:{room_recommend} ,共{str(price)}元'
+            return_message += price_date + '\n'
 
+        '''
         queried_date = client_obj.queried_date
         hotel_name = client_obj.recommend if client_obj.recommend else client_obj.hotel_name_input
-
         img_path = save_price_trend_img(dates , prices ,hotel_name=hotel_name,queried_date=queried_date)
         im = pyimgur.Imgur(client_id=CLIENT_ID,client_secret=CLIENT_SECRET)
         uploaded_img = im.upload_image(img_path , title = 'Uploaded with PyImgur')
         img_URL = uploaded_img.link
-
+        '''
 
 
     line_bot_api.reply_message(
         event.reply_token,
-        ImageSendMessage(
-           original_content_url=img_URL,
-           preview_image_url=img_URL,
+        TextSendMessage(
+           text = return_message
         )
     )
 
@@ -956,8 +957,9 @@ def get_nearby_resturant(RandomChoose ,
                          hotel_name = None ,
                          place_name_or_latlng = None):
 
-    maps = GoogleMap_Scraper.init_gmaps() # initialize gmaps API
 
+    # get nearby resturants
+    maps = GoogleMap_Scraper.init_gmaps() # initialize gmaps API
     if not hotel_name and not place_name_or_latlng:
         raise ValueError('No hotel or place assigned!')
 
@@ -984,18 +986,17 @@ def get_nearby_resturant(RandomChoose ,
                                                                         rating_threshold,
                                                                         admin_area)
 
-
         print(f'DEBUG nearby_resturants  : {admin_area} , {[resturant.name for resturant in nearby_resturants]}')
-    print(f'DEBUG place_x_y : {place_x_y}')
 
 
-    # if can't find any nearby resturant , using gmaps place_nearby to compensate it.
+    # if can't find any or insufficient number of nearby resturants , using gmaps place_nearby to compensate it.
+    compensate_num = RandomChoose - len(nearby_resturants)
     if len(nearby_resturants) < RandomChoose:
 
-        print(f'DEBUG in insufficient about {RandomChoose - len(nearby_resturants)} resturants !!!')
+        print(f'DEBUG in insufficient about {compensate_num} resturants !!!')
 
         place_latlng = x_y_to_lat_lng(place_x_y)
-        while True and NEARBY_CRITERIA<20000:
+        while True and NEARBY_CRITERIA<1000000:
 
             print(f'DEBUG NEARBY_CRITERIA now : {NEARBY_CRITERIA}')
             result = maps.places_nearby(keyword='餐廳',
@@ -1003,12 +1004,12 @@ def get_nearby_resturant(RandomChoose ,
                                         radius=NEARBY_CRITERIA,
                                         language='zh-TW')  # get stores list nearby
             result = result['results']
-            if result:
+            if len(result) >= 0 :
                 break
 
             NEARBY_CRITERIA = 2*NEARBY_CRITERIA
 
-        select_num = min(RandomChoose - len(nearby_resturants) , len(result)) # if the num of search result < num need to compensate , set select num equal to min of them
+        select_num = min(compensate_num , len(result)) # if the num of search result < num need to compensate , set select num equal to min of them
 
         for place_inform in random.sample( result , select_num ):
 
@@ -1019,27 +1020,71 @@ def get_nearby_resturant(RandomChoose ,
                                                                                      place_type = 'resturant',
                                                                                      place_sub_type = 'resturant')
 
-            nearby_resturants.append(store_obj)
+            if store_obj not in nearby_resturants:
+                nearby_resturants.append(store_obj)
 
     else:
         nearby_resturants = random.sample( nearby_resturants , RandomChoose )
 
+    print(f'DEBUG in nearby_resturants : {nearby_resturants}')
+
+    # collecting the Google search result dicts
+    dict_list_exist , dict_list_not_exist = [] , []
+    # for existing search result  , get the data from database
+    for resturant_obj in nearby_resturants:
+
+        print(f'DEBUG in exist resturants name : {resturant_obj.name}')
+        resturant_search_obj = resturant_obj.resturant_search.all()
+        print(f'DEBUG in exist resturants search obj : {resturant_search_obj}')
+
+        if resturant_search_obj:
+
+            result = resturant_search_obj[0]
+            res_dic = {'result_url' : getattr(result, 'result_url'),
+                       'preview_pic_url' : getattr(result, 'preview_pic_url'),
+                       'name': resturant_obj.name ,
+                       'rating': resturant_obj.rating,
+                       'position_xy': [resturant_obj.lng , resturant_obj.lat]
+                        }
+
+            dict_list_exist.append(res_dic)
+    # TODO: 解決 remove nearby_resturant delete 會造成跳過某個 element 的 bug!!
+    nearby_resturants = [resturant for resturant in nearby_resturants if resturant not in dict_list_exist ]
+    print(f'DEBUG in not exist resturants : {nearby_resturants}')
 
 
-    dict_list = async_get_search_result_by_resturant(nearby_resturants) # async scrape web_preview of all restuant
+    # for non-existing search result  , store url into Resturant_search objects to database.
+    dict_list_not_exist += async_get_search_result_by_resturant(nearby_resturants) # async scrape web_preview of all restuant
+    dict_list_not_exist = [dic for dic in dict_list_not_exist if dic] # exclude empty dict
+    for dict in dict_list_not_exist:
+
+        name = dict.get('name')
+        result_url = dict.get('result_url')
+        preview_pic_url = dict.get('preview_pic_url')
+
+        resturant_obj = Resturant.objects.get(name=name)
+        print(f'DEBUG in name : {name}')
+        search_obj = Resturant_search.create_obj_by_dict(result_url=result_url,
+                                                         preview_pic_url=preview_pic_url)
+        resturant_obj.resturant_search.add(search_obj)  # construct foreign-key between resturant_obj & search_obj.
 
 
-    # calculate the distance from hotel.
-    for dict in dict_list:
+    # TODO : store the search result into database.
+
+    # calculate the distance from hotel
+    dict_list_all = dict_list_exist + dict_list_not_exist
+    print(f'DEBUG in dict_list : {dict_list_all}')
+    for dict in dict_list_all:
 
         resturant_x_y = dict.get('position_xy')
-        print(f'DEBUG in distance : {place_x_y},{resturant_x_y}')
         distance_resturant = distance(place_x_y , resturant_x_y)
         dict.update({'distance' : distance_resturant})
 
+        print(f'DEBUG in distance : {place_x_y},{resturant_x_y}')
 
 
-    return dict_list
+
+    return dict_list_all
 
 
 def get_nearby_resturant_search_result_by_hotel(hotel_name,
