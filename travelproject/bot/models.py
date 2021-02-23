@@ -361,6 +361,29 @@ class Resturant(Place):
         for hotel in nearby_hotels:
             self.nearby_hotel.add(hotel)  # add into foreign-key
 
+class Resturant_search(models.Model):
+
+    result_url = models.TextField(blank=True)
+    preview_pic_url = models.TextField(blank=True)
+    resturant = models.ForeignKey(Resturant ,
+                                  on_delete=models.CASCADE ,
+                                  related_name='resturant_search',
+                                  blank=True,
+                                  null=True)
+
+    @classmethod
+    def create_obj_by_dict(cls, **store_dict):
+        # basic attribute
+        obj = cls(**store_dict)
+        if obj not in cls.objects.all():
+            print(f'DEBUG in Resturant_search class : {obj.result_url} ')
+            obj.save()  # if not has same data in database , update it .
+        return obj
+
+    def __eq__(self, other):
+        return self.result_url == other.result_url and \
+               self.preview_pic_url == other.preview_pic_url
+
 class Station(Place):
 
     @classmethod
