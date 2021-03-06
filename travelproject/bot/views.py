@@ -1030,7 +1030,8 @@ def get_nearby_resturant(RandomChoose ,
 
     # collecting the Google search result dicts
     dict_list_exist , dict_list_not_exist = [] , []
-    # for existing search result  , get the data from database
+    # for existing search result  , get the google-search data from database
+    nearby_resturants_remaining = []
     for resturant_obj in nearby_resturants:
 
         print(f'DEBUG in exist resturants name : {resturant_obj.name}')
@@ -1046,33 +1047,34 @@ def get_nearby_resturant(RandomChoose ,
                        'rating': resturant_obj.rating,
                        'position_xy': [resturant_obj.lng , resturant_obj.lat]
                         }
-
             dict_list_exist.append(res_dic)
-    # TODO: 解決 remove nearby_resturant delete 會造成跳過某個 element 的 bug!!
-    nearby_resturants = [resturant for resturant in nearby_resturants if resturant not in dict_list_exist ]
-    print(f'DEBUG in not exist resturants : {nearby_resturants}')
+
+        else:
+            nearby_resturants_remaining.append(resturant_obj) # record the resturants whose data is non-existing.
 
 
-    # for non-existing search result  , store url into Resturant_search objects to database.
-    dict_list_not_exist += async_get_search_result_by_resturant(nearby_resturants) # async scrape web_preview of all restuant
-    dict_list_not_exist = [dic for dic in dict_list_not_exist if dic] # exclude empty dict
-    for dict in dict_list_not_exist:
-
-        name = dict.get('name')
-        result_url = dict.get('result_url')
-        preview_pic_url = dict.get('preview_pic_url')
-
-        resturant_obj = Resturant.objects.get(name=name)
-        print(f'DEBUG in name : {name}')
-        search_obj = Resturant_search.create_obj_by_dict(result_url=result_url,
-                                                         preview_pic_url=preview_pic_url)
-        resturant_obj.resturant_search.add(search_obj)  # construct foreign-key between resturant_obj & search_obj.
+    print(f'DEBUG in not exist resturants : {nearby_resturants_remaining}')
 
 
-    # TODO : store the search result into database.
+        # for resturants with non-existing data, doing google-search
+    if nearby_resturants_remaining:
+        dict_list_not_exist += async_get_search_result_by_resturant(nearby_resturants_remaining) # async scrape web_preview of all restuant
+        dict_list_not_exist = [dic for dic in dict_list_not_exist if dic] # exclude empty dict
+        for dict in dict_list_not_exist:
+
+            name = dict.get('name')
+            result_url = dict.get('result_url')
+            preview_pic_url = dict.get('preview_pic_url')
+
+            resturant_obj = Resturant.objects.get(name=name)
+            print(f'DEBUG in name : {name}')
+            search_obj = Resturant_search.create_obj_by_dict(result_url=result_url,
+                                                             preview_pic_url=preview_pic_url)
+            resturant_obj.resturant_search.add(search_obj)  # construct foreign-key between resturant_obj & search_obj.
+
 
     # calculate the distance from hotel
-    dict_list_all = dict_list_exist + dict_list_not_exist
+    dict_list_all = dict_list_exist + dict_list_not_exist # combine the google-search data of existing and non-existing dict
     print(f'DEBUG in dict_list : {dict_list_all}')
     for dict in dict_list_all:
 
