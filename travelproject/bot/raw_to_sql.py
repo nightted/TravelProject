@@ -39,7 +39,7 @@ def set_sql_data(data_path , types , hash_types , city = None ):
 
 def city_data_toSQL( city , base_path = DICT_PATH ):
 
-    hash_types = {
+    hash_sub_types = {
         'train': Station,
         'hotel': Hotel,
         'nightmarket': Sightseeing,
@@ -52,13 +52,13 @@ def city_data_toSQL( city , base_path = DICT_PATH ):
         'porkrice': Resturant
     }
 
-    for types in hash_types.keys():
+    for types in hash_sub_types.keys():
 
         data_path = os.path.join(base_path , 'dict_data' , f'{city}_{types}_dict')
         try:
             set_sql_data(data_path=data_path,
                          types=types ,
-                         hash_types=hash_types
+                         hash_types=hash_sub_types
                          )
         except KeyError:
             print(f'Not contain this type {types} data!')
