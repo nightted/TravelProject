@@ -2,7 +2,8 @@ import time
 import matplotlib.pyplot as plt
 
 from bot.density_analysis import *
-from bot.google_map_scraper import init_gmaps
+from bot.google_map_scraper import GoogleMap_Scraper
+import plotly.express as px
 
 set_env_attr()
 from bot.models import *
@@ -68,12 +69,9 @@ class foo():
 
 if __name__ == '__main__':
 
-    maps = init_gmaps()
-    res = maps.places_nearby(keyword='餐廳',
-                            location={'lng': 120.4703258, 'lat': 23.1060822},
-                            radius=500,
-                            language='zh-TW')
-
-    print(res)
+    df = px.data.stocks()
+    print(df)
+    #fig = px.line(df, x='date', y="GOOG")
+    #fig.show()
 
 
