@@ -1,14 +1,17 @@
-from bot.google_map_scraper import GoogleMap_Scraper  , init_gmaps
+import os
+
+from bot.google_map_scraper import GoogleMap_Scraper
 from bot.tools import *
 from bot.density_analysis import local_density
 from bot.constants import *
-
+from bot.save_load import *
 
 set_env_attr()  # set env attrs
 from bot.models import *
 
 # City prop.
 admin_area = 'Hualien'
+store_folder_path = f"/travelproject/city_data/{admin_area}/"
 
 # search center
 try:
@@ -35,7 +38,7 @@ for food in popular_food:
 
 
 # step 1
-def place_scraper(store_types):
+def place_scraper(store_types, admin_area):
     
     if not admin_area:
         raise NameError('No admin_area assigned !!!')
@@ -58,15 +61,41 @@ def place_scraper(store_types):
                                                  place_sub_type = store_param['place_sub_type'],
                                                  )
         objects.update({
-            keyword : objs
+            store_param['place_sub_type'] : objs
         })
 
-    for type_name , stores in objects.items():
-        print(f' tpye : {type_name}')
+    # check the store path exist or not.
+    dict_path = os.path.join(store_folder_path, 'dict_data')
+    density_path = os.path.join(store_folder_path, 'density_data')
+
+    if not os.path.isdir(store_folder_path):
+        os.mkdir(store_folder_path)
+    if not os.path.isdir(dict_path):
+        os.mkdir(dict_path)
+    if not os.path.isdir(density_path):
+        os.mkdir(density_path)
+
+
+    for place_sub_type , places in objects.items():
+
+        print(f' tpye : {place_sub_type}')
         print('\n')
-        for store in stores:
-            print(store.__dict__)
+
+        place_dict_list = []
+        for place_obj in places:
+
+            place_dict = place_obj.__dict__
+            place_dict_list.append(place_dict) # store the dict to list to generate pkl file.
+
+            print(place_dict)
             print('\n')
+
+        # store to pkl file
+        save_pkl(os.path.join(dict_path , f'{admin_area}_{place_sub_type}_dict') , place_dict_list)
+
+
+
+
 
 
 # step 2
@@ -84,9 +113,19 @@ def construct_hotel_data(admin_area):
 
 # step 3
 def construct_density_matrix(store_types):
-    
-    for _ , store_param in  store_types.items():
-        data_objects = Place.objects.filter(place_sub_type = store_param['place_sub_type'])
+
+
+    density_path = os.path.join(store_folder_path, 'density_data')
+    if not os.path.isdir(density_path):
+        os.mkdir(density_path)
+
+
+    for keyword , store_param in  store_types.items():
+
+        print(f' Now scrape {keyword} data ~ , the params is {store_param}')
+
+        place_sub_type = store_param['place_sub_type']
+        data_objects = Place.objects.filter(place_sub_type = place_sub_type)
         output , max_rho , max_pos  = local_density(data_objects,
                                                     rating_dependent=True,
                                                     jump_distance=100,
@@ -99,10 +138,15 @@ def construct_density_matrix(store_types):
         Array_2d.create_array_object(arr = density,
                                      name = store_param['place_sub_type'],
                                      admin_area=admin_area)
+
+        # save density data to pkl file.
+        save_pkl(os.path.join(density_path, f'{admin_area}_{place_sub_type}_dict'), density)
+
     # construct grid to lat ,lng array object
     Array_3d.create_array_object(arr=gridtolatlng,
                                  name='gridtolatlng',
                                  admin_area=admin_area)
+    save_pkl(os.path.join(density_path, f'{admin_area}_gridtolatlng_dict'), gridtolatlng)
     
 
 
@@ -115,14 +159,14 @@ if __name__ == '__main__':
     # Firstly , grab all type stores and storage into store_objects_all
     print("Now in stage 1 ~ grab all type stores and storage into store_objects_all  ")
 
-    #place_scraper(store_types)
+    #place_scraper(store_types, admin_area)
 
     # Secondly , to compare the name of hotels between booking.com and gmaps and filter
     print("Now in stage 2 ~ compare the name of hotels between booking.com and gmaps and filter ")
 
-    construct_hotel_data(admin_area)
+    #construct_hotel_data(admin_area)
 
     # Thirdly , construct density data of all type of stores
     print("Now in stage 3 ~ construct density data of all type of stores ")
 
-    #construct_density_matrix(store_types)
+    construct_density_matrix(store_types)
