@@ -35,9 +35,7 @@ SECRET_KEY = config['secret']['django_secret_key']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['1d5fdbcd5451.ngrok.io']
-
-
+ALLOWED_HOSTS = ['3fea44d96c46.ngrok.io']
 
 # Application definition
 
@@ -92,7 +90,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',  #PostgreSQL
         'NAME': 'travel_data',  #資料庫名稱
         'USER': 'postgres',  #資料庫帳號
-        'PASSWORD': 'ted0920536607',  #資料庫密碼
+        'PASSWORD': '*',  #資料庫密碼
         'HOST': 'localhost',  #Server(伺服器)位址
         'PORT': '5432'  #PostgreSQL Port號
     }
