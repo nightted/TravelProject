@@ -9,8 +9,17 @@ from bot.save_load import *
 set_env_attr()  # set env attrs
 from bot.models import *
 
-# City prop.
+# City prop. and scrape params
 admin_area = 'Hualien'
+store_types = {
+    '飯店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'hotel' , 'place_sub_type' : 'hotel'} , # TODO (備忘) : need to construct hotel first due to manytomany field !!!!!
+    '餐廳' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'resturant'} ,
+    '便利商店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'con'} ,
+    '停車場' : {'radius' : 1000 , 'ranging' : 3 , 'place_type' : 'station' , 'place_sub_type' : 'parking'} ,
+    '夜市' : {'radius' : 2000 , 'ranging' : 2 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'nightmarket'} ,
+    '觀光景點' : {'radius' : 3000 , 'ranging' : 4 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'sightseeing'} ,
+    f"{center_of_city[admin_area]['city_en_to_cn']}火車站" : {'radius' : 5000 , 'ranging' : 1 , 'place_type' : 'station' , 'place_sub_type' : 'station'} ,
+}
 
 # check city data folder exist
 store_folder_path = os.path.join(BASE_PATH ,
@@ -26,16 +35,6 @@ try:
 except KeyError:
     print(f'Not contain {admin_area} area !')
 
-# All scrape type of stores
-store_types = {
-    '飯店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'hotel' , 'place_sub_type' : 'hotel'} , # TODO (備忘) : need to construct hotel first due to manytomany field !!!!!
-    '餐廳' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'resturant'} ,
-    '便利商店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'con'} ,
-    '停車場' : {'radius' : 1000 , 'ranging' : 3 , 'place_type' : 'station' , 'place_sub_type' : 'parking'} ,
-    '夜市' : {'radius' : 2000 , 'ranging' : 2 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'nightmarket'} ,
-    '觀光景點' : {'radius' : 3000 , 'ranging' : 4 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'sightseeing'} ,
-    f"{center_of_city[admin_area]['city_en_to_cn']}火車站" : {'radius' : 5000 , 'ranging' : 1 , 'place_type' : 'station' , 'place_sub_type' : 'station'} ,
-}
 
 # popular food
 popular_food = center_of_city[admin_area]['popular_food']
