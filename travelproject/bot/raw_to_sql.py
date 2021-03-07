@@ -1,11 +1,11 @@
 import pickle
 import os
 from bot.tools import *
+from bot.constants import *
 
 set_env_attr()  # set env attrs
 from bot.models import *
 
-DICT_PATH = 'C:/Users/tedchang/PycharmProjects/TravelProject/travelproject/city_data/Tainan/'
 
 def save_pkl(path, data):
     with open(path, "wb") as pkl:
@@ -37,7 +37,7 @@ def set_sql_data(data_path , types , hash_types , city = None ):
             arr = data
         ) # remember the type is "LIST" !
 
-def city_data_toSQL( city , base_path = DICT_PATH ):
+def city_data_toSQL( city , base_path = BASE_PATH ):
 
     hash_sub_types = {
         'train': Station,
@@ -54,7 +54,11 @@ def city_data_toSQL( city , base_path = DICT_PATH ):
 
     for types in hash_sub_types.keys():
 
-        data_path = os.path.join(base_path , 'dict_data' , f'{city}_{types}_dict')
+        data_path = os.path.join(base_path ,
+                                 'city_data' ,
+                                 f'{city}' ,
+                                 'dict_data' ,
+                                 f'{city}_{types}_dict')
         try:
             set_sql_data(data_path=data_path,
                          types=types ,
@@ -63,7 +67,7 @@ def city_data_toSQL( city , base_path = DICT_PATH ):
         except KeyError:
             print(f'Not contain this type {types} data!')
 
-def density_data_toSQL(city  , base_path = DICT_PATH ):
+def density_data_toSQL(city  , base_path = BASE_PATH ):
 
     hash_types = {
         'beefsoup' : Array_2d ,
@@ -78,7 +82,11 @@ def density_data_toSQL(city  , base_path = DICT_PATH ):
 
     for types in hash_types.keys():
 
-        data_path = os.path.join(base_path , 'density_data' , f'Tainan_{types}_density')
+        data_path = os.path.join(base_path ,
+                                 'city_data' ,
+                                 f'{city}' ,
+                                 'density_data' ,
+                                 f'{city}_{types}_density')
         try:
             set_sql_data(data_path=data_path,
                          types=types,
@@ -89,9 +97,9 @@ def density_data_toSQL(city  , base_path = DICT_PATH ):
 
 if __name__  == '__main__' :
 
-    density_data_toSQL(city='Tainan')
-
-
+    city_data_toSQL(city='Tainan')
+    '''path = os.path.dirname(DICT_PATH)
+    print(path)'''
 
 
 
