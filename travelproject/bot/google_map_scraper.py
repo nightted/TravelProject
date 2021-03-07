@@ -315,7 +315,7 @@ class GoogleMap_Scraper:
           #objects : store or hotel objects found
 
         '''
-        maps = init_gmaps() # initial maps
+        maps = self.init_gmaps() # initial maps
         search_points = grid_generator(search_center, radius, ranging, mode=mode)
 
         for idx, location in enumerate(search_points):
