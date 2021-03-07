@@ -991,12 +991,12 @@ def get_nearby_resturant(RandomChoose ,
 
     # if can't find any or insufficient number of nearby resturants , using gmaps place_nearby to compensate it.
     compensate_num = RandomChoose - len(nearby_resturants)
-    if len(nearby_resturants) < RandomChoose:
+    if compensate_num > 0:
 
         print(f'DEBUG in insufficient about {compensate_num} resturants !!!')
 
         place_latlng = x_y_to_lat_lng(place_x_y)
-        while True and NEARBY_CRITERIA<1000000:
+        while True and NEARBY_CRITERIA<100000:
 
             print(f'DEBUG NEARBY_CRITERIA now : {NEARBY_CRITERIA}')
             result = maps.places_nearby(keyword='餐廳',
@@ -1004,7 +1004,7 @@ def get_nearby_resturant(RandomChoose ,
                                         radius=NEARBY_CRITERIA,
                                         language='zh-TW')  # get stores list nearby
             result = result['results']
-            if len(result) >= 0 :
+            if len(result) > 0 :
                 break
 
             NEARBY_CRITERIA = 2*NEARBY_CRITERIA
@@ -1030,7 +1030,10 @@ def get_nearby_resturant(RandomChoose ,
 
     # collecting the Google search result dicts
     dict_list_exist , dict_list_not_exist = [] , []
-    # for existing search result  , get the google-search data from database
+
+    # check if the search result exist in database ;
+    # if so , get the google-search data from database ;
+    # if not , store the place_obj into list and do search in next step.
     nearby_resturants_remaining = []
     for resturant_obj in nearby_resturants:
 
@@ -1056,7 +1059,7 @@ def get_nearby_resturant(RandomChoose ,
     print(f'DEBUG in not exist resturants : {nearby_resturants_remaining}')
 
 
-        # for resturants with non-existing data, doing google-search
+    # for resturants with non-existing data, doing google-search
     if nearby_resturants_remaining:
         dict_list_not_exist += async_get_search_result_by_resturant(nearby_resturants_remaining) # async scrape web_preview of all restuant
         dict_list_not_exist = [dic for dic in dict_list_not_exist if dic] # exclude empty dict
