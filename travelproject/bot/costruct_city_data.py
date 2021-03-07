@@ -11,7 +11,14 @@ from bot.models import *
 
 # City prop.
 admin_area = 'Hualien'
-store_folder_path = f"/travelproject/city_data/{admin_area}/"
+
+# check city data folder exist
+store_folder_path = os.path.join(BASE_PATH ,
+                                 'city_data',
+                                 admin_area)
+if not os.path.isdir(store_folder_path):
+    os.mkdir(store_folder_path)
+
 
 # search center
 try:
@@ -68,8 +75,6 @@ def place_scraper(store_types, admin_area):
     dict_path = os.path.join(store_folder_path, 'dict_data')
     density_path = os.path.join(store_folder_path, 'density_data')
 
-    if not os.path.isdir(store_folder_path):
-        os.mkdir(store_folder_path)
     if not os.path.isdir(dict_path):
         os.mkdir(dict_path)
     if not os.path.isdir(density_path):
@@ -91,6 +96,7 @@ def place_scraper(store_types, admin_area):
             print('\n')
 
         # store to pkl file
+        print(f'Now writing {place_sub_type} type data to pkl file!')
         save_pkl(os.path.join(dict_path , f'{admin_area}_{place_sub_type}_dict') , place_dict_list)
 
 
