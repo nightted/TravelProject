@@ -11,15 +11,7 @@ from bot.models import *
 
 # City prop. and scrape params
 admin_area = 'Hualien'
-store_types = {
-    '飯店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'hotel' , 'place_sub_type' : 'hotel'} , # TODO (備忘) : need to construct hotel first due to manytomany field !!!!!
-    '餐廳' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'resturant'} ,
-    '便利商店' : {'radius' : 500 , 'ranging' : 4 , 'place_type' : 'resturant' , 'place_sub_type' : 'con'} ,
-    '停車場' : {'radius' : 1000 , 'ranging' : 3 , 'place_type' : 'station' , 'place_sub_type' : 'parking'} ,
-    '夜市' : {'radius' : 2000 , 'ranging' : 2 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'nightmarket'} ,
-    '觀光景點' : {'radius' : 3000 , 'ranging' : 4 , 'place_type' : 'sightseeing' , 'place_sub_type' : 'sightseeing'} ,
-    f"{center_of_city[admin_area]['city_en_to_cn']}火車站" : {'radius' : 5000 , 'ranging' : 1 , 'place_type' : 'station' , 'place_sub_type' : 'station'} ,
-}
+store_types = center_of_city[admin_area]['scrape_inform']
 
 # check city data folder exist
 store_folder_path = os.path.join(BASE_PATH ,
@@ -97,10 +89,6 @@ def place_scraper(store_types, admin_area):
         # store to pkl file
         print(f'Now writing {place_sub_type} type data to pkl file!')
         save_pkl(os.path.join(dict_path , f'{admin_area}_{place_sub_type}_dict') , place_dict_list)
-
-
-
-
 
 
 # step 2
