@@ -1,0 +1,32 @@
+version: '3.8'
+services:
+
+    pgdb:
+      container_name: 'postgres'
+      image: postgres
+      environment:
+        - POSTGRES_DB='travel_data'
+        - POSTGRES_USER='postgres'
+        - POSTGRES_PASSWORD='ted0920536607'
+      ports:
+        - "5432:5432"
+        # (HOST:CONTAINER)
+      volumes:
+        - ?:/var/lib/postgresql/data/
+      networks:
+        - proxy
+
+    webapp:
+      build: .
+      command: python manage.py runserver 0.0.0.0:8000
+      restart: always
+      volumes:
+        - .:/travelproject
+        # (HOST:CONTAINER)
+      ports:
+        - "8000:8000"
+        # (HOST:CONTAINER)
+      depends_on:
+        - pgdb
+      networks:
+        - proxy
