@@ -13,7 +13,7 @@ LineBot Arcitecture:
 ![image](https://github.com/nightted/TravelProject/blob/master/structure.png)
 
 Reply detail Process and flow:
-![image](https://github.com/nightted/TravelProject/blob/master/line%20bot%20logic.png)
+![image](https://github.com/nightted/TravelProject/blob/master/Line%20bot%20flow.png)
 
 Reply procees stage and function type:
 ![image](https://github.com/nightted/TravelProject/blob/master/function%20apply%20process.png)
