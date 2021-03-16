@@ -1,7 +1,7 @@
 # TravelProject
 This project is for recommendation for hotels and stores in specific area in Tainan , using Googlmap API + web-scraping ,Django + linebot to demonstrate  
 
-![image]()
+<img src="https://github.com/nightted/TravelProject/blob/master/demo2.gif" alt="Your image title" width="250"/>
 
 LineBot Arcitecture:
 ![image](https://github.com/nightted/TravelProject/blob/master/structure.png)
